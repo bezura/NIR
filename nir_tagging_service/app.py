@@ -73,7 +73,13 @@ def create_app(
         Base.metadata.create_all(bind=engine)
         yield
 
-    app = FastAPI(title=current_settings.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=current_settings.app_name,
+        lifespan=lifespan,
+        docs_url=f"{current_settings.api_prefix}/docs",
+        redoc_url=f"{current_settings.api_prefix}/redoc",
+        openapi_url=f"{current_settings.api_prefix}/openapi.json",
+    )
     app.state.settings = current_settings
     app.state.engine = engine
     app.state.session_factory = session_factory

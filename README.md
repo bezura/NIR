@@ -38,6 +38,9 @@ TAGGING_DATABASE_URL=sqlite:///./tagging.db
 uv run uvicorn nir_tagging_service.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+После старта Swagger UI доступен по адресу `http://127.0.0.1:8000/api/v1/tagging/docs`.
+OpenAPI schema доступна по адресу `http://127.0.0.1:8000/api/v1/tagging/openapi.json`.
+
 При первом реальном inference `sentence-transformers` модель загрузится из Hugging Face.
 
 ## Docker Dev Run
@@ -50,6 +53,7 @@ docker compose up --build
 ```
 
 Docker поднимает `api` и `db`, а API становится доступен по адресу `http://127.0.0.1:8000`.
+Swagger UI в Docker-сценарии доступен по адресу `http://127.0.0.1:8000/api/v1/tagging/docs`.
 
 На первом старте контейнер синхронизирует Python dependencies через `uv sync`, а при первом реальном inference скачает модель `sentence-transformers`, поэтому cold start будет заметно дольше обычного.
 
