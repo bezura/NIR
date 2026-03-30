@@ -1,0 +1,27 @@
+[
+  {
+    "title": "Embeddings for semantic search",
+    "text": "Transformer embeddings improve semantic search quality, document similarity and vector-based retrieval pipelines.",
+    "expected_category": "technology_software"
+  },
+  {
+    "title": "Research note on keyphrase extraction",
+    "text": "This paper compares unsupervised keyphrase extraction methods and discusses evaluation for research corpora.",
+    "expected_category": "science_research"
+  },
+  {
+    "title": "Learning plan for machine learning",
+    "text": "The note outlines a study path, lectures and exercises for learning machine learning fundamentals.",
+    "expected_category": "education_learning"
+  },
+  {
+    "title": "Compliance policy update",
+    "text": "The document explains new legal obligations, internal controls and regulatory compliance requirements.",
+    "expected_category": "law_policy"
+  },
+  {
+    "title": "Product strategy memo",
+    "text": "The memo covers market positioning, product roadmap priorities and monetization assumptions for the next quarter.",
+    "expected_category": "business_product"
+  }
+]

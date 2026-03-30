@@ -1,0 +1,97 @@
+from nir_tagging_service.tag_extraction import KeywordTagger
+
+
+class FakeKeywordExtractor:
+    def __init__(self, keywords: list[tuple[str, float]]) -> None:
+        self.keywords = keywords
+        self.seen_text: str | None = None
+        self.seen_top_n: int | None = None
+
+    def extract(self, text: str, top_n: int) -> list[tuple[str, float]]:
+        self.seen_text = text
+        self.seen_top_n = top_n
+        return self.keywords
+
+
+def test_keyword_tagger_normalizes_deduplicates_and_limits_results() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("Machine Learning", 0.91),
+            ("machine   learning", 0.87),
+            ("NLP", 0.82),
+            (" semantic search ", 0.74),
+            ("AI", 0.70),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        ["Machine learning systems improve semantic search relevance."],
+        max_tags=3,
+    )
+
+    assert [tag.normalized_label for tag in tags] == [
+        "machine learning",
+        "nlp",
+        "semantic search",
+    ]
+    assert tags[0].score == 0.91
+    assert extractor.seen_top_n == 9
+
+
+def test_keyword_tagger_uses_all_chunks_for_extraction_context() -> None:
+    extractor = FakeKeywordExtractor([("transformer embeddings", 0.88)])
+    tagger = KeywordTagger(extractor=extractor)
+
+    tagger.extract_tags(
+        [
+            "Transformer embeddings improve semantic retrieval.",
+            "Keyphrase extraction adds explainability to search results.",
+        ],
+        max_tags=5,
+    )
+
+    assert extractor.seen_text == (
+        "Transformer embeddings improve semantic retrieval.\n\n"
+        "Keyphrase extraction adds explainability to search results."
+    )
+
+
+def test_keyword_tagger_filters_substrings_and_stopword_edges() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("machine learning", 0.92),
+            ("learning", 0.91),
+            ("keyphrase extraction", 0.83),
+            ("keyphrase", 0.80),
+            ("priorities and", 0.79),
+            ("semantic search", 0.78),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(["A sample text"], max_tags=5)
+
+    assert [tag.normalized_label for tag in tags] == [
+        "machine learning",
+        "keyphrase extraction",
+        "semantic search",
+    ]
+
+
+def test_keyword_tagger_filters_code_like_noise_tokens() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("document_id category_label", 0.88),
+            ("framework selection", 0.84),
+            ("api contracts", 0.81),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(["A sample text"], max_tags=5)
+
+    assert [tag.normalized_label for tag in tags] == [
+        "framework selection",
+        "api contracts",
+    ]

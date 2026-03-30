@@ -1,0 +1,50 @@
+[
+  {
+    "title": "Embeddings for semantic search",
+    "kind": "short_note",
+    "expected_category": "technology_software",
+    "text": "Transformer embeddings improve semantic search quality, document similarity and vector-based retrieval pipelines."
+  },
+  {
+    "title": "Research note on keyphrase extraction",
+    "kind": "short_note",
+    "expected_category": "science_research",
+    "text": "This paper compares unsupervised keyphrase extraction methods and discusses evaluation for research corpora."
+  },
+  {
+    "title": "Learning plan for machine learning",
+    "kind": "short_note",
+    "expected_category": "education_learning",
+    "text": "The note outlines a study path, lectures and exercises for learning machine learning fundamentals."
+  },
+  {
+    "title": "Compliance policy update",
+    "kind": "short_note",
+    "expected_category": "law_policy",
+    "text": "The document explains new legal obligations, internal controls and regulatory compliance requirements."
+  },
+  {
+    "title": "Product strategy memo",
+    "kind": "short_note",
+    "expected_category": "business_product",
+    "text": "The memo covers market positioning, product roadmap priorities and monetization assumptions for the next quarter."
+  },
+  {
+    "title": "Tagging subsystem analytical notes",
+    "kind": "long_document",
+    "expected_category": "science_research",
+    "file_path": "tmp/nir_tagging_categorization_notes.md"
+  },
+  {
+    "title": "Libraries and software selection",
+    "kind": "long_document",
+    "expected_category": "technology_software",
+    "file_path": "tmp/Раздел НИР Библиотеки и ПО.md"
+  },
+  {
+    "title": "Scientific problem statement",
+    "kind": "long_document",
+    "expected_category": "science_research",
+    "file_path": "tmp/Литературный обзор по теме НИР/Научная проблема исследования.md"
+  }
+]

@@ -1,0 +1,114 @@
+# Tagging Subsystem MVP
+
+Автономный сервис для автоматизированного тегирования и категоризации избранного контента.
+
+Сервис:
+
+- принимает текст и метаданные документа;
+- создаёт асинхронную задачу обработки;
+- определяет одну основную категорию;
+- извлекает набор тегов;
+- сохраняет статусы и результат в БД;
+- может опционально усиливать результат через внешний `LLM/API`.
+
+## Local Run
+
+### 1. Prepare environment
+
+```bash
+uv sync
+cp .env.example .env
+```
+
+По умолчанию сервис ожидает `PostgreSQL`:
+
+```env
+TAGGING_DATABASE_URL=postgresql+psycopg://tagging:tagging@localhost:5432/tagging
+```
+
+Для локального smoke-run допустим и `SQLite`:
+
+```env
+TAGGING_DATABASE_URL=sqlite:///./tagging.db
+```
+
+### 2. Start the API
+
+```bash
+uv run uvicorn nir_tagging_service.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+При первом реальном inference `sentence-transformers` модель загрузится из Hugging Face.
+
+## Example Request
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/tagging/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "text": "Transformer embeddings improve semantic search quality and keyphrase extraction makes results easier to explain.",
+    "source": "article",
+    "metadata": {"title": "Embeddings for semantic search", "language": "en"},
+    "options": {"max_tags": 5, "use_llm_postprocess": false}
+  }'
+```
+
+Ожидаемый ответ:
+
+```json
+{
+  "job_id": "3f781ab1-74fc-4704-95e8-b89adba13a11",
+  "status": "queued",
+  "document_id": "749cc4c8-f34b-46a5-b478-40d8b2390e6b",
+  "status_url": "/api/v1/tagging/jobs/3f781ab1-74fc-4704-95e8-b89adba13a11",
+  "result_url": "/api/v1/tagging/jobs/3f781ab1-74fc-4704-95e8-b89adba13a11/result"
+}
+```
+
+Далее:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>
+curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>/result
+```
+
+## Demo Scenario
+
+Рекомендуемый сценарий показа:
+
+1. Запустить сервис локально.
+2. Отправить 2-3 коротких примера из `examples/quality-evaluation-dataset.json`.
+3. Показать жизненный цикл `queued -> processing -> completed`.
+4. Показать результат с категорией, тегами и `signals`.
+5. Отдельно показать один long-document пример:
+   `Scientific problem statement` или `Libraries and software selection`.
+6. При наличии внешнего API повторить тот же запрос с `use_llm_postprocess=true` и показать добавленное `explanation`.
+
+## MVP Scope
+
+В MVP вошло:
+
+- автономный `FastAPI` сервис;
+- хранение `documents`, `tagging_jobs`, `tagging_results`;
+- базовая предобработка текста;
+- категоризация через `sentence-transformers` + cosine similarity;
+- тегирование через `KeyBERT` с нормализацией и фильтрами;
+- асинхронный background pipeline;
+- evaluation dataset и demo artifacts;
+- optional `LLM/API` enhancer как строго opt-in слой.
+
+Оставлено на следующий этап:
+
+- более умная фильтрация шумовых тегов на длинных русскоязычных документах;
+- более точная калибровка научных long-document кейсов;
+- durable queue вместо `BackgroundTasks`;
+- миграции и полноценный deployment stack;
+- количественная оценка на большей размеченной выборке.
+
+## Known Limitations
+
+- один scientific long-document кейс из evaluation set всё ещё уходит в `technology_software`;
+- `KeyBERT` иногда отдаёт extractive-фразы, которые остаются лишь частично очищенными;
+- background processing не переживает restart процесса;
+- OCR, мультимодальность и vector store не входят в MVP;
+- optional `LLM/API` режим зависит от внешнего провайдера, latency и token-cost.
