@@ -1,0 +1,10 @@
+.git
+.worktrees
+.venv
+.pytest_cache
+.mypy_cache
+.idea
+__pycache__
+tmp
+.DS_Store
+.env

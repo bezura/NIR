@@ -40,6 +40,35 @@ uv run uvicorn nir_tagging_service.app:app --host 0.0.0.0 --port 8000 --reload
 
 При первом реальном inference `sentence-transformers` модель загрузится из Hugging Face.
 
+## Docker Dev Run
+
+### 1. Prepare environment
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Docker поднимает `api` и `db`, а API становится доступен по адресу `http://127.0.0.1:8000`.
+
+На первом старте контейнер синхронизирует Python dependencies через `uv sync`, а при первом реальном inference скачает модель `sentence-transformers`, поэтому cold start будет заметно дольше обычного.
+
+### 2. Stop the environment
+
+```bash
+docker compose down
+```
+
+### 3. Rebuild after dependency changes
+
+Если вы меняли `pyproject.toml` или хотите полностью пересобрать dev-образ, выполните:
+
+```bash
+docker compose up --build
+```
+
+Исходный локальный сценарий через `uv` остаётся рабочим и подходит, если Docker не нужен.
+
 ## Example Request
 
 ```bash
