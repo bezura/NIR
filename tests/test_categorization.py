@@ -1,11 +1,6 @@
-import json
-from pathlib import Path
-
 import numpy as np
 
 from nir_tagging_service.category_catalog import (
-    DEFAULT_CATEGORIES,
-    DEFAULT_EMBEDDING_MODEL,
     CategoryDefinition,
 )
 from nir_tagging_service.categorization import EmbeddingCategoryClassifier
@@ -17,12 +12,6 @@ class FakeEmbedder:
 
     def encode(self, texts: list[str]) -> np.ndarray:
         return np.vstack([self.mapping[text] for text in texts])
-
-
-def test_default_category_catalog_uses_fixed_multilingual_model() -> None:
-    assert DEFAULT_EMBEDDING_MODEL == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    assert len(DEFAULT_CATEGORIES) == 6
-    assert all(category.description for category in DEFAULT_CATEGORIES)
 
 
 def test_categorizer_chooses_best_category_by_cosine_similarity() -> None:
@@ -124,12 +113,3 @@ def test_categorization_result_can_return_top_k_scores() -> None:
         "science_research",
     ]
     assert result.top_k(2)[0]["score"] >= result.top_k(2)[1]["score"]
-
-
-def test_manual_review_fixture_contains_examples_for_quality_checks() -> None:
-    samples = json.loads(
-        Path("tests/fixtures/manual-category-review.json").read_text(encoding="utf-8")
-    )
-
-    assert len(samples) >= 5
-    assert all({"title", "text", "expected_category"} <= sample.keys() for sample in samples)

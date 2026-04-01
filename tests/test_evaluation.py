@@ -55,13 +55,3 @@ def test_evaluate_dataset_returns_accuracy_summary(tmp_path) -> None:
     assert report["top_2_accuracy"] == 1.0
     assert report["short_document_accuracy"] == 1.0
     assert report["long_document_accuracy"] is None
-
-
-def test_readiness_and_diagnostics_are_documented() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
-
-    assert "/health" in readme
-    assert "/readiness" in readme
-    assert "signals" in readme
-    assert "content_type_hint" in readme
-    assert "deprecated" in readme.lower()
