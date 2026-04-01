@@ -39,12 +39,13 @@ def build_default_pipeline_services(settings: Settings) -> PipelineServices:
     embedder = SentenceTransformerEmbedder(settings.embedding_model_name)
     enhancer = None
 
-    if settings.llm_api_url and settings.llm_api_key and settings.llm_model:
+    if settings.openai_base_url and settings.openai_api_key and settings.openai_model:
         enhancer = OpenAICompatibleEnhancer(
-            api_url=settings.llm_api_url,
-            api_key=settings.llm_api_key,
-            model=settings.llm_model,
-            timeout_seconds=settings.llm_timeout_seconds,
+            api_url=settings.openai_base_url,
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            folder_id=settings.openai_project,
+            timeout_seconds=settings.openai_timeout_seconds,
         )
 
     return PipelineServices(

@@ -5,3 +5,4 @@ tmp/
 .venv/
 .pytest_cache/
 __pycache__/
+tagging.db

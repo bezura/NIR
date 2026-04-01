@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,10 +9,11 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1/tagging"
     database_url: str = "postgresql+psycopg://tagging:tagging@localhost:5432/tagging"
     embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    llm_api_url: str | None = None
-    llm_api_key: str | None = None
-    llm_model: str | None = None
-    llm_timeout_seconds: int = 30
+    openai_base_url: str | None = Field(default=None, validation_alias="OPENAI_BASE_URL")
+    openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    openai_project: str | None = Field(default=None, validation_alias="OPENAI_PROJECT")
+    openai_model: str | None = Field(default=None, validation_alias="OPENAI_MODEL")
+    openai_timeout_seconds: int = Field(default=30, validation_alias="OPENAI_TIMEOUT_SECONDS")
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(
