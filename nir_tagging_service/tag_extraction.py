@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
-from nir_tagging_service.category_catalog import DEFAULT_EMBEDDING_MODEL
+from nir_tagging_service.embeddings import SentenceTransformerProvider
 
 
 class KeywordExtractionBackend(Protocol):
@@ -12,17 +12,15 @@ class KeywordExtractionBackend(Protocol):
 
 
 class KeyBERTKeywordExtractor:
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL) -> None:
-        self.model_name = model_name
+    def __init__(self, provider: SentenceTransformerProvider) -> None:
+        self.provider = provider
         self._extractor = None
 
     def _load_extractor(self):
         if self._extractor is None:
             from keybert import KeyBERT
-            from sentence_transformers import SentenceTransformer
 
-            embedding_model = SentenceTransformer(self.model_name)
-            self._extractor = KeyBERT(model=embedding_model)
+            self._extractor = KeyBERT(model=self.provider.get_model())
 
         return self._extractor
 

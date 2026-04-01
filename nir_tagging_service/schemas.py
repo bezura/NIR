@@ -9,7 +9,11 @@ SourceType = Literal["note", "snippet", "web_page", "article", "document"]
 class TaggingOptions(BaseModel):
     max_tags: int = Field(default=5, ge=1, le=10)
     use_llm_postprocess: bool = False
-    content_type_hint: str | None = None
+    content_type_hint: str | None = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated no-op compatibility field. Currently accepted but not applied.",
+    )
 
 
 class CreateTaggingJobRequest(BaseModel):
@@ -20,6 +24,11 @@ class CreateTaggingJobRequest(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    status: str
+    service: str
+
+
+class ReadinessResponse(BaseModel):
     status: str
     service: str
 

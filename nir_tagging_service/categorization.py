@@ -8,9 +8,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from nir_tagging_service.category_catalog import (
     DEFAULT_CATEGORIES,
-    DEFAULT_EMBEDDING_MODEL,
     CategoryDefinition,
 )
+from nir_tagging_service.embeddings import SentenceTransformerProvider
 
 
 class EmbeddingBackend(Protocol):
@@ -18,20 +18,11 @@ class EmbeddingBackend(Protocol):
 
 
 class SentenceTransformerEmbedder:
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL) -> None:
-        self.model_name = model_name
-        self._model = None
-
-    def _load_model(self):
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
-
-            self._model = SentenceTransformer(self.model_name)
-
-        return self._model
+    def __init__(self, provider: SentenceTransformerProvider) -> None:
+        self.provider = provider
 
     def encode(self, texts: list[str]) -> np.ndarray:
-        model = self._load_model()
+        model = self.provider.get_model()
         embeddings = model.encode(
             texts,
             convert_to_numpy=True,
@@ -46,6 +37,10 @@ class CategorizationResult:
     category: CategoryDefinition
     score: float
     similarities: dict[str, float]
+
+    def top_k(self, limit: int) -> list[dict[str, float | str]]:
+        ranked = sorted(self.similarities.items(), key=lambda item: item[1], reverse=True)[:limit]
+        return [{"code": code, "score": float(score)} for code, score in ranked]
 
 
 class EmbeddingCategoryClassifier:

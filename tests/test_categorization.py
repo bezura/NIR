@@ -87,6 +87,45 @@ def test_categorizer_averages_multiple_chunk_embeddings() -> None:
     assert result.score > 0.8
 
 
+def test_categorization_result_can_return_top_k_scores() -> None:
+    categories = [
+        CategoryDefinition(
+            code="technology_software",
+            label="Технологии и разработка",
+            description="technology",
+        ),
+        CategoryDefinition(
+            code="science_research",
+            label="Наука и исследования",
+            description="science",
+        ),
+        CategoryDefinition(
+            code="education_learning",
+            label="Образование и обучение",
+            description="education",
+        ),
+    ]
+    classifier = EmbeddingCategoryClassifier(
+        embedder=FakeEmbedder(
+            {
+                "technology": [1.0, 0.0],
+                "science": [0.4, 0.6],
+                "education": [0.0, 1.0],
+                "document": [0.9, 0.1],
+            }
+        ),
+        categories=categories,
+    )
+
+    result = classifier.categorize(["document"])
+
+    assert [item["code"] for item in result.top_k(2)] == [
+        "technology_software",
+        "science_research",
+    ]
+    assert result.top_k(2)[0]["score"] >= result.top_k(2)[1]["score"]
+
+
 def test_manual_review_fixture_contains_examples_for_quality_checks() -> None:
     samples = json.loads(
         Path("tests/fixtures/manual-category-review.json").read_text(encoding="utf-8")

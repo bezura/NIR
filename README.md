@@ -43,6 +43,13 @@ OpenAPI schema доступна по адресу `http://127.0.0.1:8000/api/v1/
 
 При первом реальном inference `sentence-transformers` модель загрузится из Hugging Face.
 
+### 3. Health And Readiness
+
+Сервис отдаёт два базовых технических endpoint:
+
+- `GET /health` для liveness-проверки;
+- `GET /readiness` для проверки, что API, database layer и pipeline services инициализированы.
+
 ## Docker Dev Run
 
 ### 1. Prepare environment

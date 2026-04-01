@@ -230,6 +230,102 @@ def test_malformed_enhancer_payload_falls_back_to_base_result(tmp_path) -> None:
         assert result_response.json()["signals"]["llm_postprocess_error"] is True
 
 
+def test_result_response_exposes_standardized_diagnostics(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-diagnostics.db'}")
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeCategorizer(),
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "Transformer embeddings improve search quality and explainability.",
+                "source": "article",
+                "metadata": {"title": "Embeddings"},
+                "options": {"max_tags": 5, "content_type_hint": "article_like"},
+            },
+        )
+
+        result_response = client.get(
+            f"/api/v1/tagging/jobs/{response.json()['job_id']}/result"
+        )
+
+        assert result_response.status_code == 200
+        signals = result_response.json()["signals"]
+        assert signals["content_type"] == "article_like"
+        assert signals["chunked"] is False
+        assert signals["num_chunks"] == 1
+        assert signals["pipeline"]["content_type_hint"] == "article_like"
+        assert signals["pipeline"]["content_type_hint_applied"] is False
+        assert "timings_ms" in signals
+        assert "category_scores_top_k" in signals
+
+
+def test_result_response_reports_top_k_scores_in_descending_order(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-scores.db'}")
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeCategorizer(),
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "Transformer embeddings improve search quality and explainability.",
+                "source": "article",
+                "metadata": {},
+                "options": {"max_tags": 5},
+            },
+        )
+
+        result_response = client.get(
+            f"/api/v1/tagging/jobs/{response.json()['job_id']}/result"
+        )
+
+        top_k = result_response.json()["signals"]["category_scores_top_k"]
+        assert top_k[0]["code"] == "technology_software"
+        assert top_k[0]["score"] >= top_k[1]["score"]
+
+
+def test_result_response_persists_stage_timings(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-timings.db'}")
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeCategorizer(),
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "Transformer embeddings improve search quality and explainability.",
+                "source": "article",
+                "metadata": {},
+                "options": {"max_tags": 5},
+            },
+        )
+
+        result_response = client.get(
+            f"/api/v1/tagging/jobs/{response.json()['job_id']}/result"
+        )
+
+        timings = result_response.json()["signals"]["timings_ms"]
+        assert {"preprocessing", "categorization", "tagging", "db_write", "total"} <= set(timings)
+        assert all(timings[key] >= 0 for key in timings)
+
+
 def test_in_memory_sqlite_uses_same_engine_for_startup_and_requests() -> None:
     settings = Settings(database_url="sqlite:///:memory:")
     app = create_app(

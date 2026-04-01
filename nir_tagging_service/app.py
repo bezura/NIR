@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.responses import JSONResponse
@@ -14,7 +15,9 @@ from nir_tagging_service.categorization import (
 from nir_tagging_service.config import Settings, get_settings
 from nir_tagging_service.db.models import Base, Document, TaggingJob, TaggingResult, utc_now
 from nir_tagging_service.db.session import create_engine, create_session_factory
+from nir_tagging_service.embeddings import SharedSentenceTransformerProvider
 from nir_tagging_service.llm_enhancement import OpenAICompatibleEnhancer
+from nir_tagging_service.observability import get_logger, log_event, track_stage
 from nir_tagging_service.preprocessing import prepare_text
 from nir_tagging_service.schemas import (
     CreateTaggingJobRequest,
@@ -23,6 +26,7 @@ from nir_tagging_service.schemas import (
     HealthResponse,
     JobResultResponse,
     JobStatusResponse,
+    ReadinessResponse,
     TagResponse,
 )
 from nir_tagging_service.tag_extraction import KeyBERTKeywordExtractor, KeywordTagger
@@ -36,7 +40,8 @@ class PipelineServices:
 
 
 def build_default_pipeline_services(settings: Settings) -> PipelineServices:
-    embedder = SentenceTransformerEmbedder(settings.embedding_model_name)
+    embedding_provider = SharedSentenceTransformerProvider(settings.embedding_model_name)
+    embedder = SentenceTransformerEmbedder(embedding_provider)
     enhancer = None
 
     if settings.openai_base_url and settings.openai_api_key and settings.openai_model:
@@ -50,7 +55,7 @@ def build_default_pipeline_services(settings: Settings) -> PipelineServices:
 
     return PipelineServices(
         categorizer=EmbeddingCategoryClassifier(embedder=embedder),
-        tagger=KeywordTagger(extractor=KeyBERTKeywordExtractor(settings.embedding_model_name)),
+        tagger=KeywordTagger(extractor=KeyBERTKeywordExtractor(embedding_provider)),
         enhancer=enhancer,
     )
 
@@ -68,6 +73,7 @@ def create_app(
     engine = create_engine(current_settings)
     session_factory = create_session_factory(current_settings, engine=engine)
     services = pipeline_services or build_default_pipeline_services(current_settings)
+    logger = get_logger("nir_tagging_service.pipeline", current_settings.log_level)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -93,47 +99,73 @@ def create_app(
                 return
 
             try:
+                total_started = perf_counter()
                 job.status = "processing"
                 job.started_at = utc_now()
                 session.commit()
+                log_event(logger, "job_processing_started", job_id=job.id, document_id=job.document_id, status=job.status)
 
                 document = session.get(Document, job.document_id)
-                prepared = prepare_text(document.text, document.source)
+                timings_ms: dict[str, float] = {}
+
+                with track_stage(timings_ms, "preprocessing"):
+                    prepared = prepare_text(document.text, document.source)
+
                 max_tags = job.options_json.get("max_tags", 5)
-                category_result = services.categorizer.categorize(prepared.categorization_chunks)
-                tags = services.tagger.extract_tags(prepared.tag_extraction_chunks, max_tags=max_tags)
+
+                with track_stage(timings_ms, "categorization"):
+                    category_result = services.categorizer.categorize(prepared.categorization_chunks)
+
+                with track_stage(timings_ms, "tagging"):
+                    tags = services.tagger.extract_tags(prepared.tag_extraction_chunks, max_tags=max_tags)
+
                 tags_payload = [asdict(tag) for tag in tags]
                 explanation = None
                 signals = {
                     "chunked": prepared.chunked,
                     "content_type": prepared.content_type,
+                    "num_chunks": len(prepared.chunks),
                     "source": document.source,
+                    "pipeline": {
+                        "content_type_hint": job.options_json.get("content_type_hint"),
+                        "content_type_hint_applied": False,
+                    },
                     "llm_postprocessed": False,
+                    "timings_ms": timings_ms,
+                    "category_scores_top_k": category_result.top_k(3),
                 }
 
                 if job.options_json.get("use_llm_postprocess") and services.enhancer is not None:
                     try:
-                        enhanced = services.enhancer.enhance(
-                            text=document.text,
-                            category={
-                                "code": category_result.category.code,
-                                "label": category_result.category.label,
-                                "score": category_result.score,
-                            },
-                            tags=tags_payload,
-                        )
-                        validated_tags = TypeAdapter(list[TagResponse]).validate_python(
-                            enhanced.get("tags", tags_payload)
-                        )
-                        candidate_explanation = enhanced.get("explanation")
-                        if candidate_explanation is not None and not isinstance(candidate_explanation, str):
-                            raise TypeError("enhancer explanation must be a string or null")
-                        tags_payload = [tag.model_dump() for tag in validated_tags]
-                        explanation = candidate_explanation
-                        signals["llm_postprocessed"] = True
+                        with track_stage(timings_ms, "llm_postprocess"):
+                            enhanced = services.enhancer.enhance(
+                                text=document.text,
+                                category={
+                                    "code": category_result.category.code,
+                                    "label": category_result.category.label,
+                                    "score": category_result.score,
+                                },
+                                tags=tags_payload,
+                            )
+                            validated_tags = TypeAdapter(list[TagResponse]).validate_python(
+                                enhanced.get("tags", tags_payload)
+                            )
+                            candidate_explanation = enhanced.get("explanation")
+                            if candidate_explanation is not None and not isinstance(candidate_explanation, str):
+                                raise TypeError("enhancer explanation must be a string or null")
+                            tags_payload = [tag.model_dump() for tag in validated_tags]
+                            explanation = candidate_explanation
+                            signals["llm_postprocessed"] = True
                     except Exception:  # noqa: BLE001
                         signals["llm_postprocessed"] = False
                         signals["llm_postprocess_error"] = True
+                        log_event(
+                            logger,
+                            "llm_postprocess_fallback",
+                            job_id=job.id,
+                            document_id=document.id,
+                            status="fallback",
+                        )
 
                 result = TaggingResult(
                     job_id=job.id,
@@ -146,10 +178,16 @@ def create_app(
                     signals_json=signals,
                     explanation=explanation,
                 )
-                session.add(result)
-                job.status = "completed"
-                job.finished_at = utc_now()
+                with track_stage(timings_ms, "db_write"):
+                    session.add(result)
+                    job.status = "completed"
+                    job.finished_at = utc_now()
+                    session.commit()
+
+                timings_ms["total"] = round((perf_counter() - total_started) * 1000, 3)
+                result.signals_json = signals
                 session.commit()
+                log_event(logger, "job_completed", job_id=job.id, document_id=document.id, status=job.status)
             except Exception as exc:  # noqa: BLE001
                 session.rollback()
                 failed_job = session.get(TaggingJob, job_id)
@@ -161,12 +199,24 @@ def create_app(
                 failed_job.error_message = str(exc)
                 failed_job.finished_at = utc_now()
                 session.commit()
+                log_event(
+                    logger,
+                    "job_failed",
+                    job_id=failed_job.id,
+                    document_id=failed_job.document_id,
+                    status=failed_job.status,
+                    error_message=str(exc),
+                )
 
     app.state.process_job = process_job
 
     @app.get("/health", response_model=HealthResponse)
     def healthcheck() -> HealthResponse:
         return HealthResponse(status="ok", service=current_settings.app_name)
+
+    @app.get("/readiness", response_model=ReadinessResponse)
+    def readinesscheck() -> ReadinessResponse:
+        return ReadinessResponse(status="ready", service=current_settings.app_name)
 
     @app.post(
         f"{current_settings.api_prefix}/jobs",
@@ -194,6 +244,7 @@ def create_app(
             session.refresh(job)
 
         background_tasks.add_task(process_job, job.id)
+        log_event(logger, "job_queued", job_id=job.id, document_id=document.id, status=job.status)
 
         return CreateTaggingJobResponse(
             job_id=job.id,
