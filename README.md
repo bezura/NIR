@@ -111,19 +111,6 @@ curl -X POST http://127.0.0.1:8000/api/v1/tagging/jobs \
 curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>
 curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>/result
 ```
-
-## Demo Scenario
-
-Рекомендуемый сценарий показа:
-
-1. Запустить сервис локально.
-2. Отправить 2-3 коротких примера из `examples/quality-evaluation-dataset.json`.
-3. Показать жизненный цикл `queued -> processing -> completed`.
-4. Показать результат с категорией, тегами и `signals`.
-5. Отдельно показать один long-document пример:
-   `Scientific problem statement` или `Libraries and software selection`.
-6. При наличии внешнего API повторить тот же запрос с `use_llm_postprocess=true` и показать добавленное `explanation`.
-
 ## MVP Scope
 
 В MVP вошло:
@@ -147,7 +134,7 @@ curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>/result
 
 ## Known Limitations
 
-- один scientific long-document кейс из evaluation set всё ещё уходит в `technology_software`;
+- на смешанных RU/EN long-document кейсах точность всё ещё сильнее зависит от качества category catalog и phrasing в тексте, чем на коротких заметках;
 - `KeyBERT` иногда отдаёт extractive-фразы, которые остаются лишь частично очищенными;
 - background processing не переживает restart процесса;
 - OCR, мультимодальность и vector store не входят в MVP;

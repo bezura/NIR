@@ -1,50 +1,97 @@
 [
   {
-    "title": "Embeddings for semantic search",
     "kind": "short_note",
+    "metadata": {
+      "title": "Hybrid Search for a Support Knowledge Base",
+      "keywords": [
+        "RAG",
+        "vector database",
+        "semantic search"
+      ]
+    },
     "expected_category": "technology_software",
-    "text": "Transformer embeddings improve semantic search quality, document similarity and vector-based retrieval pipelines."
+    "text": "Команда описывает сервис для корпоративной knowledge base: документы индексируются в vector database, запрос сначала проходит lexical search, затем retrieval pipeline добавляет embeddings и reranking. В заметке обсуждаются API endpoints, chunking strategy, latency budget и то, как backend должен обрабатывать mixed RU/EN технические термины."
   },
   {
-    "title": "Research note on keyphrase extraction",
     "kind": "short_note",
+    "metadata": {
+      "keywords": [
+        "literature review",
+        "benchmark",
+        "multilingual evaluation"
+      ]
+    },
     "expected_category": "science_research",
-    "text": "This paper compares unsupervised keyphrase extraction methods and discusses evaluation for research corpora."
+    "text": "В исследовательской заметке сравниваются методы автоматического тегирования для русских и английских текстов. Автор описывает постановку эксперимента, метрики precision@k и top-2 accuracy, а также ограничения выборки для multilingual evaluation."
   },
   {
-    "title": "Learning plan for machine learning",
     "kind": "short_note",
+    "metadata": {
+      "title": "Syllabus for Intro to Data Analysis"
+    },
     "expected_category": "education_learning",
-    "text": "The note outlines a study path, lectures and exercises for learning machine learning fundamentals."
+    "text": "The document outlines a semester plan for an introductory data analysis course, including weekly lectures, reading assignments, lab sessions, and a final project on text classification."
   },
   {
-    "title": "Compliance policy update",
     "kind": "short_note",
     "expected_category": "law_policy",
-    "text": "The document explains new legal obligations, internal controls and regulatory compliance requirements."
+    "text": "В документе перечислены требования к хранению пользовательских данных, правила согласия на обработку персональной информации, сроки удаления записей и ответственность подразделений за соблюдение внутренней compliance policy."
   },
   {
-    "title": "Product strategy memo",
     "kind": "short_note",
+    "metadata": {
+      "title": "Quarterly Roadmap Review",
+      "keywords": [
+        "roadmap",
+        "conversion",
+        "retention"
+      ]
+    },
     "expected_category": "business_product",
-    "text": "The memo covers market positioning, product roadmap priorities and monetization assumptions for the next quarter."
+    "text": "В продуктовой записке разбираются причины просадки activation rate, приоритеты следующего квартала и гипотеза о том, что self-serve onboarding повысит conversion. Команда сравнивает churn, CAC и expected revenue impact для трёх инициатив."
   },
   {
-    "title": "Tagging subsystem analytical notes",
-    "kind": "long_document",
-    "expected_category": "science_research",
-    "file_path": "tmp/nir_tagging_categorization_notes.md"
+    "kind": "short_note",
+    "metadata": {
+      "keywords": [
+        "reminder",
+        "ideas backlog"
+      ]
+    },
+    "expected_category": "personal_knowledge",
+    "text": "Записать идеи для следующего спринта: проверить новую схему дедупликации тегов, не забыть обновить benchmark после релиза и отдельно выписать вопросы к обсуждению на синк с командой."
   },
   {
-    "title": "Libraries and software selection",
     "kind": "long_document",
+    "metadata": {
+      "title": "Архитектура retrieval-платформы для корпоративной базы знаний",
+      "keywords": [
+        "semantic search",
+        "embeddings",
+        "vector database"
+      ]
+    },
     "expected_category": "technology_software",
-    "file_path": "tmp/Раздел НИР Библиотеки и ПО.md"
+    "text": "Документ описывает архитектуру внутренней retrieval-платформы для корпоративной базы знаний. В первой части разбираются требования к ingestion pipeline: как забирать статьи из wiki, как выделять metadata, как нормализовать mixed RU/EN текст и как хранить версии документов для последующего переиндекса. Затем автор подробно описывает слой embeddings: рассматриваются multilingual sentence transformers, процесс батчевой генерации векторов, отдельный warmup на старте сервиса и требования к memory footprint при развёртывании в контейнере. Отдельный раздел посвящён API сервису на FastAPI: какие endpoint нужны для загрузки документов, как оформлять jobs и polling, почему public response должен быть отделён от internal diagnostics, и как в signals хранить readiness, timings и top-k category scores.\n\nВ технической части много внимания уделено retrieval pipeline. Сначала система выполняет lexical retrieval по BM25, затем поверх кандидатов запускается dense retrieval по embeddings, а финальный порядок документов уточняется reranker-моделью. Для длинных документов описывается chunk selection strategy: заголовок, introduction, conclusion и фрагменты с высокой term density получают дополнительный приоритет. Автор отдельно объясняет, почему нельзя полагаться только на первые два чанка, когда документ содержит архитектурное описание, benchmarking appendix и operational notes в разных местах. Есть раздел про observability: structured logs с job_id и document_id, latency metrics для preprocessing, categorization и tagging, readiness probe, а также отдельные счётчики ошибок при LLM postprocess.\n\nВ документе обсуждаются ограничения и компромиссы. Использование одного shared embedding provider уменьшает cold start и расход памяти, но требует аккуратного lifecycle management в приложении. Асинхронный HTTP слой не делает inference неблокирующим сам по себе, поэтому CPU-bound обработка переносится в threadpool. Описаны вопросы безопасности, rate limiting, retry policy и правила graceful degradation, если внешний provider недоступен. Большой блок посвящён данным: как хранить category catalog, каким образом добавлять bilingual prototypes, как не потерять английские technical terms в русских документах и как выстраивать versioned evaluation dataset без ссылок на локальные временные файлы.\n\nЗаключительная часть документа содержит roadmap по развитию платформы. Сначала предлагается стабилизировать API контракт и baseline benchmark, затем улучшить language-aware preprocessing, потом расширить long-document categorization на все чанки и только после этого переходить к иерархической taxonomy. Дополнительно обсуждаются практики code review, release checklist, container image hardening, миграции базы и стратегия по нагрузочному тестированию. В приложении приведены примеры SQLAlchemy моделей, схемы очереди задач, конфигурация health и readiness endpoint, а также сценарии ручной проверки semantic search quality на документах из внутренней базы знаний."
   },
   {
-    "title": "Scientific problem statement",
     "kind": "long_document",
+    "metadata": {
+      "keywords": [
+        "literature review",
+        "precision@k",
+        "multilingual evaluation"
+      ]
+    },
     "expected_category": "science_research",
-    "file_path": "tmp/Литературный обзор по теме НИР/Научная проблема исследования.md"
+    "text": "В литературном обзоре анализируются современные подходы к автоматической категоризации и тегированию научных и прикладных текстов на русском и английском языках. Автор начинает с постановки проблемы: в корпоративных и университетских архивах быстро растёт объём смешанных RU/EN документов, а существующие пайплайны часто проектируются как language-agnostic и поэтому теряют качество на стыке терминологии, морфологии и доменных сокращений. Далее рассматриваются работы по sentence embeddings, keyphrase extraction, zero-shot categorization и multilingual benchmarking. Для каждого направления фиксируются сильные и слабые стороны, типовые метрики и характерные ошибки, например переобобщение на коротких текстах, шум в тегах на длинных документах и некорректное объединение близких терминов.\n\nОтдельная глава посвящена методологии исследования. Описывается формирование размеченной выборки, критерии отбора текстов, разбиение на short notes и long documents, а также правила ручной верификации результатов. Автор объясняет, почему baseline должен быть воспроизводимым и self-contained, без ссылок на локальные временные файлы и недоступные артефакты. В качестве основных метрик используются category accuracy, top-2 accuracy, precision@5 для тегов, количество дублей, а также качественные заметки по ошибкам на mixed-language кейсах. Приводятся примеры документов, где заголовок несёт ключевой контекст, и показывается, как отсутствие title в input должно интерпретироваться как нормальный сценарий, а не как ошибка в данных.\n\nЭкспериментальная часть сравнивает несколько вариантов пайплайна. Первый вариант использует статический набор стоп-слов, нормализацию без морфологии и категоризацию только по первым двум чанкам. Второй вариант добавляет language profile, библиотечные стоп-слова, учёт metadata, language-aware preprocessing и shared embedding provider. Третий вариант дополняется русской лемматизацией через морфологический анализатор, title boost для тегов и merge по леммам вместо простого substring dedupe. Для каждого варианта приводятся результаты на русском, английском и смешанном корпусе, обсуждается вклад title, metadata keywords и bilingual prototypes в category catalog. Особое внимание уделено тому, как mixed RU/EN документы влияют на выбор категории и почему scientific papers с большим количеством technical terms могут ошибочно смещаться в сторону software topics.\n\nВ заключении подводятся итоги исследования и формулируются дальнейшие вопросы. Автор отмечает, что language-aware pipeline уменьшает шум в тегах и повышает стабильность классификации, но остаются открытые задачи по noun-phrase extraction, более точной агрегации по long documents и расширению каталога категорий. Также обсуждаются ограничения выбранных библиотек, риски переобучения на узкой выборке и необходимость периодически обновлять benchmark по мере роста taxonomy. Работа завершается перечнем практических рекомендаций для следующего релиза сервиса: усилить long-document scoring, расширить benchmark для mixed кейсов, ввести confidence gap и добавить ручной контроль качества на размеченной RU/EN выборке."
+  },
+  {
+    "kind": "long_document",
+    "metadata": {
+      "title": "Программа практикума по анализу текстов и информационному поиску"
+    },
+    "expected_category": "education_learning",
+    "text": "Учебно-методический документ описывает практикум по анализу текстов, автоматическому тегированию и информационному поиску для студентов старших курсов. В первой части перечислены цели курса: научить студентов работать с корпусами документов, извлекать признаки, строить базовые классификаторы, сравнивать подходы к semantic search и интерпретировать результаты экспериментов. Далее расписаны учебные модули по неделям: введение в text preprocessing, tokenization, stopwords, морфологическую нормализацию, векторные представления документов, retrieval pipelines, quality evaluation и анализ ошибок. Для каждого модуля указаны лекции, практические задания, контрольные вопросы и литература на русском и английском языках.\n\nВ разделе лабораторных работ подробно описываются упражнения. На первой неделе студенты реализуют очистку текста и сравнивают несколько правил нормализации для русского и английского. На второй неделе они строят простой классификатор категорий на базе sentence embeddings, а затем анализируют случаи, где scientific articles и software documentation оказываются слишком близки. На третьей неделе группа занимается извлечением тегов: сначала через extractive методы, затем с language-aware postprocessing, title boost и ручной проверкой результата. Отдельная работа посвящена long-document processing, где необходимо разбить текст на чанки, выбрать информативные фрагменты и сравнить влияние разных стратегий агрегации на итоговую категорию.\n\nВ документе подробно описаны требования к отчётности и критериям оценки. Студенты должны сдавать короткие письменные отчёты, notebook с кодом, таблицу с метриками accuracy и precision@k, а также пояснения по ошибкам на русских и смешанных текстах. Проверяется не только качество модели, но и корректность эксперимента: наличие baseline, воспроизводимость, адекватный выбор метрик и качественный анализ failure cases. Важной частью практикума является обсуждение интерфейса сервиса: как оформлять API, какие поля в response считать стабильными, как документировать internal diagnostics и почему readiness endpoint полезен в учебных и production-сценариях.\n\nЗаключительный модуль курса посвящён проектной работе. Студенты объединяются в команды, выбирают собственный набор документов и готовят мини-сервис для категоризации и тегирования. Им предлагается описать архитектуру, настроить базовую observability, собрать evaluation dataset без внешних зависимостей и продемонстрировать работу на нескольких RU, EN и mixed примерах. Финальная защита включает разбор архитектурных решений, сравнение baseline и improved pipeline, а также обсуждение того, какие улучшения стоит делать следующими: richer category catalog, confidence gap, noun-phrase bias или иерархическую taxonomy."
   }
 ]

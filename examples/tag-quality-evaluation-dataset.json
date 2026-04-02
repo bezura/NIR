@@ -4,47 +4,77 @@
     "metadata": {
       "title": "Semantic Search в RAG-системах"
     },
-    "text": "RAG-системы применяются для semantic search по корпоративным документам и knowledge base.",
+    "text": "RAG-системы применяются для semantic search по корпоративным документам и внутренней knowledge base. Команда сравнивает chunking, reranking и качество ответов на mixed RU/EN запросах.",
     "expected_tags": [
       "semantic search",
       "rag системы",
-      "корпоративные документы"
+      "корпоративные документы",
+      "knowledge base"
     ]
   },
   {
     "kind": "short_note",
-    "metadata": {
-      "title": "Векторные базы данных для retrieval pipeline"
-    },
-    "text": "Векторные базы данных используются в retrieval pipeline для быстрого семантического поиска.",
+    "text": "Векторные базы данных используются в retrieval pipeline для быстрого семантического поиска по инструкциям и технической документации. В заметке сравниваются индексация, фильтрация по metadata и latency при обновлении embeddings.",
     "expected_tags": [
       "векторные базы данных",
       "retrieval pipeline",
-      "семантический поиск"
+      "семантический поиск",
+      "embeddings"
     ]
   },
   {
     "kind": "short_note",
     "metadata": {
-      "title": "Ключевые фразы и тематическое моделирование"
+      "title": "Multilingual Evaluation of Keyphrase Extraction"
     },
-    "text": "Тематическое моделирование и выделение ключевых фраз помогают в автоматическом тегировании.",
+    "text": "The research memo compares keyphrase extraction quality on Russian, English, and mixed-language corpora. It reports precision@5, discusses annotation guidelines, and highlights errors in multilingual evaluation.",
     "expected_tags": [
-      "тематическое моделирование",
-      "ключевые фразы",
-      "автоматическое тегирование"
+      "keyphrase extraction",
+      "multilingual evaluation",
+      "precision@5",
+      "mixed-language corpora"
     ]
   },
   {
     "kind": "short_note",
     "metadata": {
-      "title": "Embeddings for Document Categorization"
+      "keywords": [
+        "structured logging",
+        "readiness"
+      ]
     },
-    "text": "Document embeddings improve document categorization, semantic retrieval, and annotation quality.",
+    "text": "Команда добавила structured logging, latency metrics и readiness probe для сервиса тегирования. Отдельно обсуждаются job_id, document_id и тайминги по стадиям preprocessing, categorization и tagging.",
     "expected_tags": [
-      "document embeddings",
-      "document categorization",
-      "semantic retrieval"
+      "structured logging",
+      "latency metrics",
+      "readiness probe",
+      "тайминги по стадиям"
+    ]
+  },
+  {
+    "kind": "short_note",
+    "metadata": {
+      "title": "BERT and Tokenization Workshop"
+    },
+    "text": "На практическом занятии студенты разбирают tokenization, BERT embeddings и классификацию текста. В конце занятия они сравнивают zero-shot labeling и тематическое моделирование на коротких документах.",
+    "expected_tags": [
+      "bert embeddings",
+      "tokenization",
+      "классификация текста",
+      "zero-shot labeling"
+    ]
+  },
+  {
+    "kind": "long_document",
+    "metadata": {
+      "title": "План развития платформы категоризации и тегирования"
+    },
+    "text": "В документе описан план развития платформы категоризации и тегирования на ближайшие два релиза. Первая часть посвящена качеству тегов: предлагается усилить title boost, заменить substring dedupe на merge по леммам, добавить noun-phrase bias и собрать отдельный benchmark для mixed RU/EN кейсов. Далее разбирается observability: structured logs, latency metrics, readiness endpoint и дешёвый baseline runner для регулярной проверки качества.\n\nВо второй части обсуждается long-document processing. Автор перечисляет проблемы текущего подхода, когда классификация зависит от первых двух чанков, и предлагает перейти к all-chunk scoring, smart chunk selection и confidence gap между top-1 и top-2 категориями. Отдельный блок посвящён bilingual category catalog, где для technology и science должны появиться дополнительные русские и английские прототипы. В приложении приводятся примеры документов с заголовками и без них, чтобы evaluation dataset был ближе к реальности.\n\nЗаключение посвящено внедрению. Для тегов предлагается сохранить KeyBERT как extractor кандидатов, но добавить language-aware postprocessing, русскую лемматизацию, аккуратную фильтрацию английских technical terms и ручной контроль качества по precision@5. Для инфраструктуры описываются shared embedding provider, async API слой, database migrations и release checklist. Документ завершается перечнем ожидаемых артефактов: self-contained benchmark, README с понятным описанием examples, и набор smoke-тестов, на которых можно быстро увидеть эффект от изменений.",
+    "expected_tags": [
+      "title boost",
+      "confidence gap",
+      "bilingual category catalog",
+      "precision@5"
     ]
   }
 ]

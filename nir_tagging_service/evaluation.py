@@ -28,6 +28,17 @@ def _load_dataset_text(sample: dict[str, Any], dataset_path: Path) -> str:
     return candidate.read_text(encoding="utf-8")
 
 
+def _load_sample_metadata(sample: dict[str, Any]) -> dict[str, Any]:
+    metadata = sample.get("metadata")
+    normalized: dict[str, Any] = dict(metadata) if isinstance(metadata, dict) else {}
+
+    legacy_title = sample.get("title")
+    if isinstance(legacy_title, str) and legacy_title.strip() and "title" not in normalized:
+        normalized["title"] = legacy_title.strip()
+
+    return normalized
+
+
 def _safe_accuracy(values: list[bool]) -> float | None:
     if not values:
         return None
@@ -42,7 +53,8 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
     for sample in samples:
         text = _load_dataset_text(sample, Path(dataset_path))
         source = "document" if sample["kind"] == "long_document" else "article"
-        prepared = prepare_text(text, source)
+        metadata = _load_sample_metadata(sample)
+        prepared = prepare_text(text, source, metadata=metadata)
         category_result = categorizer.categorize(prepared.categorization_chunks)
         tagger.extract_tags(prepared.tag_extraction_chunks, max_tags=5)
 
@@ -86,7 +98,7 @@ def evaluate_tag_dataset(dataset_path: Path, tagger: Any, max_tags: int = 5) -> 
     for sample in samples:
         text = _load_dataset_text(sample, Path(dataset_path))
         source = "document" if sample["kind"] == "long_document" else "article"
-        metadata = sample.get("metadata") or {}
+        metadata = _load_sample_metadata(sample)
         prepared = prepare_text(text, source, metadata=metadata)
         predicted = tagger.extract_tags(
             prepared.tag_extraction_chunks,
