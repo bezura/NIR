@@ -23,7 +23,7 @@ def _load_dataset_text(sample: dict[str, Any], dataset_path: Path) -> str:
 
     candidate = Path(file_path)
     if not candidate.is_absolute():
-        candidate = _repo_root() / candidate
+        candidate = dataset_path.parent / candidate
 
     return candidate.read_text(encoding="utf-8")
 
@@ -46,12 +46,16 @@ def _safe_accuracy(values: list[bool]) -> float | None:
     return sum(values) / len(values)
 
 
-def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[str, Any]:
-    samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
+def _evaluate_category_rows(
+    samples: list[dict[str, Any]],
+    dataset_path: Path,
+    categorizer: Any,
+    tagger: Any,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
     for sample in samples:
-        text = _load_dataset_text(sample, Path(dataset_path))
+        text = _load_dataset_text(sample, dataset_path)
         source = "document" if sample["kind"] == "long_document" else "article"
         metadata = _load_sample_metadata(sample)
         prepared = prepare_text(text, source, metadata=metadata)
@@ -64,8 +68,22 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
                 "expected_category": sample["expected_category"],
                 "predicted_category": category_result.category.code,
                 "top_2_codes": [item["code"] for item in category_result.top_k(2)],
+                "low_confidence": category_result.low_confidence,
+                "expected_low_confidence": sample.get("expected_low_confidence"),
             }
         )
+
+    return rows
+
+
+def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[str, Any]:
+    samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
+    rows = _evaluate_category_rows(
+        samples,
+        dataset_path=Path(dataset_path),
+        categorizer=categorizer,
+        tagger=tagger,
+    )
 
     exact_matches = [row["predicted_category"] == row["expected_category"] for row in rows]
     top_2_matches = [row["expected_category"] in row["top_2_codes"] for row in rows]
@@ -79,6 +97,11 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
         for row in rows
         if row["kind"] == "long_document"
     ]
+    low_confidence_rows = [row for row in rows if row["low_confidence"]]
+    low_confidence_matches = [
+        row["predicted_category"] == row["expected_category"]
+        for row in low_confidence_rows
+    ]
 
     return {
         "total_cases": len(rows),
@@ -86,6 +109,47 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
         "top_2_accuracy": _safe_accuracy(top_2_matches),
         "short_document_accuracy": _safe_accuracy(short_matches),
         "long_document_accuracy": _safe_accuracy(long_matches),
+        "low_confidence_rate": _safe_accuracy([row["low_confidence"] for row in rows]),
+        "low_confidence_accuracy": _safe_accuracy(low_confidence_matches),
+    }
+
+
+def evaluate_long_document_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[str, Any]:
+    samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
+    long_document_samples = [
+        sample for sample in samples
+        if sample.get("kind") == "long_document"
+    ]
+    rows = _evaluate_category_rows(
+        long_document_samples,
+        dataset_path=Path(dataset_path),
+        categorizer=categorizer,
+        tagger=tagger,
+    )
+
+    exact_matches = [row["predicted_category"] == row["expected_category"] for row in rows]
+    top_2_matches = [row["expected_category"] in row["top_2_codes"] for row in rows]
+    low_confidence_rows = [row for row in rows if row["low_confidence"]]
+    low_confidence_matches = [
+        row["predicted_category"] == row["expected_category"]
+        for row in low_confidence_rows
+    ]
+    expected_low_confidence_rows = [
+        row for row in rows
+        if row["expected_low_confidence"] is not None
+    ]
+    expected_low_confidence_matches = [
+        row["low_confidence"] == row["expected_low_confidence"]
+        for row in expected_low_confidence_rows
+    ]
+
+    return {
+        "total_cases": len(rows),
+        "long_document_accuracy": _safe_accuracy(exact_matches),
+        "top_2_accuracy": _safe_accuracy(top_2_matches),
+        "low_confidence_rate": _safe_accuracy([row["low_confidence"] for row in rows]),
+        "low_confidence_accuracy": _safe_accuracy(low_confidence_matches),
+        "expected_low_confidence_match_rate": _safe_accuracy(expected_low_confidence_matches),
     }
 
 
@@ -143,6 +207,7 @@ def main() -> None:
     from nir_tagging_service.config import get_settings
 
     category_dataset_path = _repo_root() / "examples" / "quality-evaluation-dataset.json"
+    long_document_dataset_path = _repo_root() / "examples" / "long-document-evaluation-dataset.json"
     tag_dataset_path = _repo_root() / "examples" / "tag-quality-evaluation-dataset.json"
     services = build_default_pipeline_services(get_settings())
     report = {
@@ -152,6 +217,12 @@ def main() -> None:
             tagger=services.tagger,
         )
     }
+    if long_document_dataset_path.exists():
+        report["long_documents"] = evaluate_long_document_dataset(
+            dataset_path=long_document_dataset_path,
+            categorizer=services.categorizer,
+            tagger=services.tagger,
+        )
     if tag_dataset_path.exists():
         report["tags"] = evaluate_tag_dataset(
             dataset_path=tag_dataset_path,

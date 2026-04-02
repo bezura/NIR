@@ -61,6 +61,30 @@ class FailingCategorizer:
         raise RuntimeError("classification pipeline exploded")
 
 
+class FakeLowConfidenceCategorizer:
+    def categorize(self, chunks: list[str]) -> CategorizationResult:
+        return CategorizationResult(
+            category=CategoryDefinition(
+                code="technology_software",
+                label="Технологии и разработка",
+                description="technology",
+            ),
+            score=0.58,
+            similarities={
+                "technology_software": 0.58,
+                "science_research": 0.55,
+                "education_learning": 0.24,
+            },
+            top_1_score=0.58,
+            top_2_score=0.55,
+            confidence_gap=0.03,
+            low_confidence=True,
+            low_confidence_reasons=["small_gap", "taxonomy_gap"],
+            num_chunks_scored=5,
+            informative_chunk_indices=[0, 4],
+        )
+
+
 class FakeEnhancer:
     def enhance(self, text: str, category: dict, tags: list[dict]) -> dict:
         return {
@@ -374,6 +398,39 @@ def test_result_response_persists_stage_timings(tmp_path) -> None:
         timings = result_response.json()["signals"]["timings_ms"]
         assert {"preprocessing", "categorization", "tagging", "db_write", "total"} <= set(timings)
         assert all(timings[key] >= 0 for key in timings)
+
+
+def test_result_response_marks_low_confidence_classification_in_signals(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-low-confidence.db'}")
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeLowConfidenceCategorizer(),
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "Документ смешивает исследовательское описание, архитектуру сервиса и benchmarking details.",
+                "source": "document",
+                "metadata": {"title": "Hybrid research and platform overview"},
+                "options": {"max_tags": 5},
+            },
+        )
+
+        result_response = client.get(
+            f"/api/v1/tagging/jobs/{response.json()['job_id']}/result"
+        )
+
+        classification = result_response.json()["signals"]["classification"]
+        assert classification["low_confidence"] is True
+        assert classification["confidence_gap"] == 0.03
+        assert classification["num_chunks_scored"] == 5
+        assert classification["informative_chunk_indices"] == [0, 4]
+        assert "taxonomy_gap" in classification["low_confidence_reasons"]
 
 
 def test_in_memory_sqlite_uses_same_engine_for_startup_and_requests() -> None:

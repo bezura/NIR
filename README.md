@@ -111,6 +111,18 @@ curl -X POST http://127.0.0.1:8000/api/v1/tagging/jobs \
 curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>
 curl http://127.0.0.1:8000/api/v1/tagging/jobs/<job_id>/result
 ```
+
+## Example Texts
+
+В `examples/` есть несколько типов примеров для ручной проверки и baseline-оценки:
+
+- `quality-evaluation-dataset.json` для category benchmark и базовых demo-кейсов;
+- `tag-quality-evaluation-dataset.json` для проверки качества тегов;
+- `long-document-evaluation-dataset.json` для long-document classification;
+- `source-material-examples.json` для дополнительных ручных примеров, собранных из преобразованных фрагментов документов и README/tutorial-подобных текстов.
+
+Для длинных и громоздких кейсов JSON может ссылаться на обычные `.txt` файлы через относительный `file_path`. Такие тексты лежат в `examples/long-documents/` и `examples/source-materials/`, поэтому их можно редактировать отдельно от JSON-метаданных.
+
 ## MVP Scope
 
 В MVP вошло:

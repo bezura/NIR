@@ -1,0 +1,47 @@
+[
+  {
+    "kind": "long_document",
+    "metadata": {
+      "title": "Architecture of a Multilingual Retrieval Platform",
+      "keywords": [
+        "semantic search",
+        "vector database",
+        "retrieval pipeline"
+      ]
+    },
+    "expected_category": "technology_software",
+    "expected_low_confidence": false,
+    "file_path": "long-documents/retrieval-platform.txt"
+  },
+  {
+    "kind": "long_document",
+    "metadata": {
+      "keywords": [
+        "literature review",
+        "benchmark",
+        "multilingual evaluation"
+      ]
+    },
+    "expected_category": "science_research",
+    "expected_low_confidence": false,
+    "file_path": "long-documents/research-review.txt"
+  },
+  {
+    "kind": "long_document",
+    "metadata": {
+      "title": "Text Analysis Practicum and Course Plan"
+    },
+    "expected_category": "education_learning",
+    "expected_low_confidence": false,
+    "file_path": "long-documents/course-practicum.txt"
+  },
+  {
+    "kind": "long_document",
+    "metadata": {
+      "title": "Ambiguous research and platform overview"
+    },
+    "expected_category": "technology_software",
+    "expected_low_confidence": true,
+    "file_path": "long-documents/ambiguous-overview.txt"
+  }
+]

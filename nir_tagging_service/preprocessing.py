@@ -9,7 +9,6 @@ from nir_tagging_service.language import LanguageProfile, detect_language_profil
 
 LONG_DOCUMENT_THRESHOLD = 3000
 MAX_CHUNK_LENGTH = 1200
-MAX_CATEGORIZATION_CHUNKS = 2
 
 
 @dataclass(slots=True)
@@ -149,7 +148,7 @@ def prepare_text(
     content_type = classify_content_type(source, cleaned_text)
     chunks = split_into_chunks(cleaned_text)
     chunked = len(chunks) > 1
-    categorization_chunks = chunks[:MAX_CATEGORIZATION_CHUNKS] if chunked else chunks
+    categorization_chunks = list(chunks)
     categorization_chunks = attach_context_to_chunks(categorization_chunks, context_prefix)
     tag_extraction_chunks = attach_context_to_chunks(chunks, context_prefix)
 
