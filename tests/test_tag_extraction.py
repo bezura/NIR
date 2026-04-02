@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from nir_tagging_service.tag_extraction import KeywordTagger
 
 
@@ -94,4 +96,34 @@ def test_keyword_tagger_filters_code_like_noise_tokens() -> None:
     assert [tag.normalized_label for tag in tags] == [
         "framework selection",
         "api contracts",
+    ]
+
+
+def test_keyword_tagger_keeps_english_technical_terms_for_mixed_russian_text() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("vector database", 0.93),
+            ("retrieval pipeline", 0.91),
+            ("the retrieval", 0.89),
+            ("и поиск", 0.88),
+            ("векторный поиск", 0.86),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        ["В статье обсуждаются vector database и retrieval pipeline для поиска."],
+        max_tags=5,
+        language_profile=SimpleNamespace(
+            dominant_language="ru",
+            secondary_language="en",
+            mixed_language=True,
+            distribution={"ru": 0.56, "en": 0.39, "other": 0.05},
+        ),
+    )
+
+    assert [tag.normalized_label for tag in tags] == [
+        "vector database",
+        "retrieval pipeline",
+        "векторный поиск",
     ]

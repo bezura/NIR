@@ -516,6 +516,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "sentence-transformers" },
     { name = "sqlalchemy" },
+    { name = "stopwordsiso" },
     { name = "uvicorn" },
 ]
 
@@ -538,6 +539,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "sentence-transformers", specifier = ">=5.3.0" },
     { name = "sqlalchemy", specifier = ">=2.0.48" },
+    { name = "stopwordsiso", specifier = ">=0.6.1" },
     { name = "uvicorn", specifier = ">=0.42.0" },
 ]
 
@@ -1272,6 +1274,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/81/69/17425771797c36cded50b7fe44e850315d039f28b15901ab44839e70b593/starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149", size = 2655289, upload-time = "2026-03-22T18:29:46.779Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/c9/584bc9651441b4ba60cc4d557d8a547b5aff901af35bda3a4ee30c819b82/starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b", size = 72651, upload-time = "2026-03-22T18:29:45.111Z" },
+]
+
+[[package]]
+name = "stopwordsiso"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/7a/d61b449f4193c6286ae11fead5eb1411e6e7d9362c0ff341bd18442825c4/stopwordsiso-0.6.1.tar.gz", hash = "sha256:5be2b4f25afc296fca4f626710b98168949057f81a655e2dbdf670ddfce2af50", size = 75592, upload-time = "2020-09-02T23:32:24.658Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/03/4c5f24b654bb9459f81aa5c1b60b094b804286b99dca9f2e116c9eb01ac8/stopwordsiso-0.6.1-py3-none-any.whl", hash = "sha256:c9bff4ed5fdddbfb56998c99d5b11460c2fea0134403e0c4104f63b7c665fffc", size = 73486, upload-time = "2020-09-02T23:32:23.049Z" },
 ]
 
 [[package]]

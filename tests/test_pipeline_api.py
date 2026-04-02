@@ -35,7 +35,12 @@ class FakeCategorizer:
 
 
 class FakeTagger:
-    def extract_tags(self, chunks: list[str], max_tags: int = 5) -> list[TagCandidate]:
+    def extract_tags(
+        self,
+        chunks: list[str],
+        max_tags: int = 5,
+        language_profile=None,
+    ) -> list[TagCandidate]:
         return [
             TagCandidate(
                 label="semantic search",
@@ -273,6 +278,41 @@ def test_result_response_exposes_standardized_diagnostics(tmp_path) -> None:
         assert signals["pipeline"]["content_type_hint_applied"] is False
         assert "timings_ms" in signals
         assert "category_scores_top_k" in signals
+
+
+def test_result_response_exposes_language_signals_for_mixed_text(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-language.db'}")
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeCategorizer(),
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "В статье сравниваются retrieval pipelines и vector databases для семантического поиска.",
+                "source": "article",
+                "metadata": {
+                    "title": "Semantic Search в RAG-системах",
+                    "keywords": ["retrieval", "векторные базы данных"],
+                },
+                "options": {"max_tags": 5},
+            },
+        )
+
+        result_response = client.get(
+            f"/api/v1/tagging/jobs/{response.json()['job_id']}/result"
+        )
+
+        language = result_response.json()["signals"]["language"]
+        assert language["dominant"] == "ru"
+        assert language["secondary"] == "en"
+        assert language["mixed"] is True
+        assert language["distribution"]["en"] > 0.15
 
 
 def test_result_response_reports_top_k_scores_in_descending_order(tmp_path) -> None:

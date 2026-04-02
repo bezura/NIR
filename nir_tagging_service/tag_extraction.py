@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol, Sequence
 
 from nir_tagging_service.embeddings import SentenceTransformerProvider
+from nir_tagging_service.language import LanguageProfile, detect_language_profile, edge_stopwords_for_profile
 
 
 class KeywordExtractionBackend(Protocol):
@@ -45,49 +46,18 @@ class TagCandidate:
 
 
 class KeywordTagger:
-    EDGE_STOPWORDS = {
-        "a",
-        "an",
-        "and",
-        "at",
-        "based",
-        "by",
-        "compares",
-        "document",
-        "for",
-        "from",
-        "in",
-        "metadata",
-        "new",
-        "note",
-        "of",
-        "on",
-        "options",
-        "or",
-        "paper",
-        "path",
-        "the",
-        "to",
-        "using",
-        "web_page",
-        "with",
-        "в",
-        "для",
-        "и",
-        "из",
-        "к",
-        "на",
-        "о",
-        "об",
-        "по",
-        "с",
-    }
-
     def __init__(self, extractor: KeywordExtractionBackend) -> None:
         self.extractor = extractor
 
-    def extract_tags(self, chunks: Sequence[str], max_tags: int = 5) -> list[TagCandidate]:
+    def extract_tags(
+        self,
+        chunks: Sequence[str],
+        max_tags: int = 5,
+        language_profile: LanguageProfile | None = None,
+    ) -> list[TagCandidate]:
         joined_text = "\n\n".join(chunk for chunk in chunks if chunk.strip())
+        resolved_language_profile = language_profile or detect_language_profile(joined_text)
+        active_edge_stopwords = edge_stopwords_for_profile(resolved_language_profile)
         raw_keywords = self.extractor.extract(joined_text, top_n=max_tags * 3)
 
         deduplicated: dict[str, TagCandidate] = {}
@@ -111,7 +81,7 @@ class KeywordTagger:
         accepted: list[TagCandidate] = []
 
         for candidate in ranked:
-            if self.is_edge_stopword_phrase(candidate.normalized_label):
+            if self.is_edge_stopword_phrase(candidate.normalized_label, active_edge_stopwords):
                 continue
 
             if self.is_code_like_phrase(candidate.normalized_label):
@@ -134,12 +104,16 @@ class KeywordTagger:
         return normalized
 
     @classmethod
-    def is_edge_stopword_phrase(cls, normalized_keyword: str) -> bool:
+    def is_edge_stopword_phrase(
+        cls,
+        normalized_keyword: str,
+        edge_stopwords: frozenset[str],
+    ) -> bool:
         tokens = normalized_keyword.split()
         if not tokens:
             return True
 
-        return tokens[0] in cls.EDGE_STOPWORDS or tokens[-1] in cls.EDGE_STOPWORDS
+        return tokens[0] in edge_stopwords or tokens[-1] in edge_stopwords
 
     @staticmethod
     def is_redundant_substring(normalized_keyword: str, accepted: list[TagCandidate]) -> bool:

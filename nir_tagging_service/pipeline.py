@@ -167,7 +167,12 @@ async def process_job(
             timings_ms: dict[str, float] = {}
 
             with track_stage(timings_ms, "preprocessing"):
-                prepared = await run_in_threadpool(prepare_text, document.text, document.source)
+                prepared = await run_in_threadpool(
+                    prepare_text,
+                    document.text,
+                    document.source,
+                    document.metadata_json,
+                )
 
             max_tags = job.options_json.get("max_tags", 5)
 
@@ -182,6 +187,7 @@ async def process_job(
                     services.tagger.extract_tags,
                     prepared.tag_extraction_chunks,
                     max_tags=max_tags,
+                    language_profile=prepared.language_profile,
                 )
 
             tags_payload = [asdict(tag) for tag in tags]
@@ -191,6 +197,12 @@ async def process_job(
                 "content_type": prepared.content_type,
                 "num_chunks": len(prepared.chunks),
                 "source": document.source,
+                "language": {
+                    "dominant": prepared.language_profile.dominant_language,
+                    "secondary": prepared.language_profile.secondary_language,
+                    "mixed": prepared.language_profile.mixed_language,
+                    "distribution": prepared.language_profile.distribution,
+                },
                 "pipeline": {
                     "content_type_hint": job.options_json.get("content_type_hint"),
                     "content_type_hint_applied": False,

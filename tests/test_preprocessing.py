@@ -7,6 +7,9 @@ def test_prepare_text_cleans_short_note_without_chunking() -> None:
     assert result.cleaned_text == "Example note about NLP"
     assert result.chunked is False
     assert result.content_type == "note_like"
+    assert result.language_profile.dominant_language == "en"
+    assert result.language_profile.secondary_language is None
+    assert result.language_profile.mixed_language is False
     assert result.categorization_chunks == ["Example note about NLP"]
     assert result.tag_extraction_chunks == ["Example note about NLP"]
 
@@ -28,3 +31,34 @@ def test_prepare_text_chunks_long_document_and_uses_subset_for_categorization() 
     assert result.tag_extraction_chunks == result.chunks
     assert len(result.categorization_text) < len(result.tag_extraction_text)
     assert all(len(chunk) <= 1200 for chunk in result.chunks)
+
+
+def test_prepare_text_detects_russian_document_language() -> None:
+    text = "Векторный поиск улучшает качество категоризации и автоматического тегирования документов."
+
+    result = prepare_text(text, source="article")
+
+    assert result.language_profile.dominant_language == "ru"
+    assert result.language_profile.secondary_language is None
+    assert result.language_profile.mixed_language is False
+    assert result.language_profile.distribution["ru"] > 0.9
+
+
+def test_prepare_text_detects_mixed_language_and_uses_metadata_context() -> None:
+    result = prepare_text(
+        "В статье сравниваются retrieval pipelines и vector databases для семантического поиска.",
+        source="article",
+        metadata={
+            "title": "Semantic Search в RAG-системах",
+            "keywords": ["retrieval", "векторные базы данных"],
+        },
+    )
+
+    assert result.title_text == "Semantic Search в RAG-системах"
+    assert result.metadata_terms == ["retrieval", "векторные базы данных"]
+    assert result.language_profile.dominant_language == "ru"
+    assert result.language_profile.secondary_language == "en"
+    assert result.language_profile.mixed_language is True
+    assert result.language_profile.distribution["en"] > 0.15
+    assert result.categorization_chunks[0].startswith("Semantic Search в RAG-системах")
+    assert "retrieval" in result.tag_extraction_chunks[0]
