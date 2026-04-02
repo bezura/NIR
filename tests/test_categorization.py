@@ -496,3 +496,35 @@ def test_long_documents_use_more_permissive_confidence_thresholds() -> None:
 
     assert long_score_threshold < short_score_threshold
     assert long_gap_threshold < short_gap_threshold
+
+
+def test_categorizer_applies_external_score_boosts_before_selecting_category() -> None:
+    categories = [
+        CategoryDefinition(
+            code="technology_software",
+            label="Технологии и разработка",
+            description="technology",
+        ),
+        CategoryDefinition(
+            code="science_research",
+            label="Наука и исследования",
+            description="science",
+        ),
+    ]
+    classifier = EmbeddingCategoryClassifier(
+        embedder=FakeEmbedder(
+            {
+                "technology": [1.0, 0.0],
+                "science": [0.0, 1.0],
+                "document": [0.73, 0.68],
+            }
+        ),
+        categories=categories,
+    )
+
+    unboosted = classifier.categorize(["document"])
+    boosted = classifier.categorize(["document"], score_boosts={"science_research": 0.06})
+
+    assert unboosted.category.code == "technology_software"
+    assert boosted.category.code == "science_research"
+    assert boosted.similarities["science_research"] > boosted.similarities["technology_software"]

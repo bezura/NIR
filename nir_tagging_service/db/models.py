@@ -35,6 +35,7 @@ class TaggingJob(Base):
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
     options_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    progress_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

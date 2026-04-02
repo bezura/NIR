@@ -19,7 +19,7 @@ async def _count_rows(app, model) -> int:
 
 
 class FakeCategorizer:
-    def categorize(self, chunks: list[str]) -> CategorizationResult:
+    def categorize(self, chunks: list[str], score_boosts: dict[str, float] | None = None) -> CategorizationResult:
         domain = CategoryDefinition(
             code="technology",
             label="Технологии",
@@ -84,12 +84,12 @@ class FakeTagger:
 
 
 class FailingCategorizer:
-    def categorize(self, chunks: list[str]) -> CategorizationResult:
+    def categorize(self, chunks: list[str], score_boosts: dict[str, float] | None = None) -> CategorizationResult:
         raise RuntimeError("classification pipeline exploded")
 
 
 class FakeLowConfidenceCategorizer:
-    def categorize(self, chunks: list[str]) -> CategorizationResult:
+    def categorize(self, chunks: list[str], score_boosts: dict[str, float] | None = None) -> CategorizationResult:
         domain = CategoryDefinition(
             code="technology",
             label="Технологии",
@@ -140,7 +140,14 @@ class FakeLowConfidenceCategorizer:
 
 
 class FakeEnhancer:
-    def enhance(self, text: str, category: dict, tags: list[dict]) -> dict:
+    def enhance(
+        self,
+        text: str,
+        category: dict,
+        tags: list[dict],
+        allowed_tags: list[dict] | None = None,
+        output_language: str = "auto",
+    ) -> dict:
         return {
             "tags": [
                 {
@@ -155,10 +162,87 @@ class FakeEnhancer:
 
 
 class MalformedEnhancer:
-    def enhance(self, text: str, category: dict, tags: list[dict]) -> dict:
+    def enhance(
+        self,
+        text: str,
+        category: dict,
+        tags: list[dict],
+        allowed_tags: list[dict] | None = None,
+        output_language: str = "auto",
+    ) -> dict:
         return {
             "tags": ["bad-shape"],
             "explanation": "Malformed enhancer payload",
+        }
+
+
+class FakeRuleAwareCategorizer:
+    def __init__(self) -> None:
+        self.last_score_boosts: dict[str, float] = {}
+
+    def categorize(self, chunks: list[str], score_boosts: dict[str, float] | None = None) -> CategorizationResult:
+        self.last_score_boosts = dict(score_boosts or {})
+
+        if self.last_score_boosts.get("science_research", 0.0) > 0:
+            domain = CategoryDefinition(
+                code="research",
+                label="Исследования",
+                description="research",
+            )
+            leaf = CategoryDefinition(
+                code="science_research",
+                label="Наука и исследования",
+                description="research",
+            )
+            return CategorizationResult(
+                category=leaf,
+                score=0.89,
+                similarities={
+                    "science_research": 0.89,
+                    "technology_software": 0.51,
+                },
+                category_path=[domain, leaf],
+                category_depth=2,
+                category_is_leaf=True,
+                classification_trace=[
+                    {
+                        "depth": 1,
+                        "selected_code": "research",
+                        "top_1_score": 0.9,
+                        "top_2_score": 0.55,
+                        "confidence_gap": 0.35,
+                        "accepted": True,
+                    },
+                    {
+                        "depth": 2,
+                        "selected_code": "science_research",
+                        "top_1_score": 0.89,
+                        "top_2_score": 0.51,
+                        "confidence_gap": 0.38,
+                        "accepted": True,
+                    },
+                ],
+            )
+
+        return FakeCategorizer().categorize(chunks, score_boosts=score_boosts)
+
+
+class CountingEnhancer:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def enhance(
+        self,
+        text: str,
+        category: dict,
+        tags: list[dict],
+        allowed_tags: list[dict] | None = None,
+        output_language: str = "auto",
+    ) -> dict:
+        self.calls += 1
+        return {
+            "tags": tags,
+            "explanation": f"Enhanced in {output_language}",
         }
 
 
@@ -192,6 +276,19 @@ def test_submit_job_persists_completed_result_and_status(tmp_path) -> None:
 
         assert status_response.status_code == 200
         assert status_response.json()["status"] == "completed"
+        assert status_response.json()["current_stage"] == "completed"
+        assert status_response.json()["stage_label"] == "Готово"
+        assert status_response.json()["progress_percent"] == 100
+        assert [stage["name"] for stage in status_response.json()["stage_history"]] == [
+            "queued",
+            "preprocessing",
+            "rule_hints",
+            "categorization",
+            "tagging",
+            "db_write",
+            "completed",
+        ]
+        assert status_response.json()["pending_stages"] == []
         assert result_response.status_code == 200
         assert result_response.json()["category"]["code"] == "technology_software"
         assert len(result_response.json()["tags"]) == 2
@@ -227,6 +324,11 @@ def test_failed_pipeline_marks_job_failed_and_persists_error(tmp_path) -> None:
 
         assert status_response.status_code == 200
         assert status_response.json()["status"] == "failed"
+        assert status_response.json()["current_stage"] == "categorization"
+        assert status_response.json()["stage_label"] == "Категоризация"
+        assert status_response.json()["progress_percent"] > 0
+        assert status_response.json()["stage_history"][-1]["name"] == "categorization"
+        assert status_response.json()["stage_history"][-1]["status"] == "failed"
         assert status_response.json()["error"]["code"] == "processing_failed"
         assert "classification pipeline exploded" in status_response.json()["error"]["message"]
         assert result_response.status_code == 409
@@ -516,3 +618,129 @@ def test_in_memory_sqlite_uses_same_engine_for_startup_and_requests() -> None:
         )
 
         assert response.status_code == 202
+
+
+def test_pipeline_applies_rule_hints_and_catalog_reconciliation(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-rules.db'}")
+    categorizer = FakeRuleAwareCategorizer()
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=categorizer,
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "This paper evaluates multilingual tagging systems and benchmark quality.",
+                "source": "article",
+                "metadata": {
+                    "title": "A Benchmark Study",
+                    "url": "https://arxiv.org/abs/2401.12345",
+                },
+                "options": {
+                    "max_tags": 5,
+                    "enable_rules": True,
+                    "tagging_mode": "existing_only",
+                    "output_language": "ru",
+                    "existing_tags": [
+                        {
+                            "canonical_name": "research paper",
+                            "aliases": ["paper", "научная статья"],
+                            "labels": {
+                                "ru": "научная статья",
+                                "en": "research paper",
+                            },
+                            "category_codes": ["science_research"],
+                        }
+                    ],
+                },
+            },
+        )
+
+        result_response = client.get(f"/api/v1/tagging/jobs/{response.json()['job_id']}/result")
+
+        assert result_response.status_code == 200
+        payload = result_response.json()
+        assert payload["category"]["code"] == "science_research"
+        assert payload["tags"][0]["label"] == "научная статья"
+        assert payload["tags"][0]["normalized_label"] == "research paper"
+        assert payload["tags"][0]["canonical_name"] == "research paper"
+        assert payload["tags"][0]["source"] == "rule"
+        assert payload["signals"]["rule_hints"]["matched_rules"][0]["rule"] == "domain:arxiv"
+        assert payload["signals"]["pipeline"]["tagging_mode"] == "existing_only"
+        assert payload["signals"]["pipeline"]["output_language"] == "ru"
+        assert categorizer.last_score_boosts["science_research"] > 0
+
+
+def test_low_confidence_llm_strategy_runs_enhancer_only_for_ambiguous_results(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-llm-strategy.db'}")
+    enhancer = CountingEnhancer()
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeLowConfidenceCategorizer(),
+            tagger=FakeTagger(),
+            enhancer=enhancer,
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "Документ смешивает исследовательское описание, архитектуру сервиса и benchmarking details.",
+                "source": "document",
+                "metadata": {"title": "Hybrid research and platform overview"},
+                "options": {"max_tags": 5, "llm_strategy": "low_confidence_only"},
+            },
+        )
+
+        result_response = client.get(f"/api/v1/tagging/jobs/{response.json()['job_id']}/result")
+        status_response = client.get(f"/api/v1/tagging/jobs/{response.json()['job_id']}")
+
+        assert result_response.status_code == 200
+        assert enhancer.calls == 1
+        assert result_response.json()["signals"]["llm_postprocessed"] is True
+        assert any(
+            stage["name"] == "llm_postprocess" and stage["status"] == "completed"
+            for stage in status_response.json()["stage_history"]
+        )
+
+
+def test_high_confidence_result_skips_low_confidence_llm_strategy(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-no-llm.db'}")
+    enhancer = CountingEnhancer()
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeCategorizer(),
+            tagger=FakeTagger(),
+            enhancer=enhancer,
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/tagging/jobs",
+            json={
+                "text": "Transformer embeddings improve search quality and explainability.",
+                "source": "article",
+                "metadata": {"title": "Embeddings"},
+                "options": {"max_tags": 5, "llm_strategy": "low_confidence_only"},
+            },
+        )
+
+        result_response = client.get(f"/api/v1/tagging/jobs/{response.json()['job_id']}/result")
+        status_response = client.get(f"/api/v1/tagging/jobs/{response.json()['job_id']}")
+
+        assert result_response.status_code == 200
+        assert enhancer.calls == 0
+        assert result_response.json()["signals"]["llm_postprocessed"] is False
+        assert any(
+            stage["name"] == "llm_postprocess" and stage["status"] == "skipped"
+            for stage in status_response.json()["stage_history"]
+        )

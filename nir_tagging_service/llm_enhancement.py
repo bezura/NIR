@@ -22,16 +22,32 @@ class OpenAICompatibleEnhancer:
             default_headers=self._build_default_headers(folder_id),
         )
 
-    def enhance(self, text: str, category: dict, tags: list[dict]) -> dict:
+    def enhance(
+        self,
+        text: str,
+        category: dict,
+        tags: list[dict],
+        allowed_tags: list[dict] | None = None,
+        output_language: str = "auto",
+    ) -> dict:
+        allowed_tags_payload = allowed_tags or []
+        catalog_instruction = (
+            "Select only from the allowed tags list when it is provided. "
+            if allowed_tags_payload
+            else ""
+        )
         prompt = {
             "role": "user",
             "content": (
                 "Refine the extracted tags and provide a short explanation for the category. "
+                f"{catalog_instruction}"
+                f"Prefer the requested output language: {output_language}. "
                 "Return strict JSON with keys 'tags' and 'explanation'. "
                 "Each item in 'tags' must be an object with keys "
-                "'label', 'normalized_label', and 'score'. "
+                "'label', 'normalized_label', 'score', 'source', 'method', and optional 'canonical_name'. "
                 f"Category: {json.dumps(category, ensure_ascii=False)}\n"
                 f"Tags: {json.dumps(tags, ensure_ascii=False)}\n"
+                f"Allowed tags: {json.dumps(allowed_tags_payload, ensure_ascii=False)}\n"
                 f"Text: {text[:6000]}"
             ),
         }
@@ -40,9 +56,11 @@ class OpenAICompatibleEnhancer:
             "response_format": {"type": "json_object"},
             "messages": [
                 {
-                    "role": "system",
-                    "content": "You refine document tags and generate short category explanations.",
-                },
+                        "role": "system",
+                        "content": (
+                            "You refine document tags, keep structured provenance, and generate short category explanations."
+                        ),
+                    },
                 prompt,
             ],
         }
@@ -87,6 +105,8 @@ class OpenAICompatibleEnhancer:
                         "label": normalized_label,
                         "normalized_label": normalized_label,
                         "score": fallback_scores.get(normalized_label, 0.0),
+                        "source": "llm",
+                        "method": "llm_selected",
                     }
                 )
                 continue
@@ -102,6 +122,9 @@ class OpenAICompatibleEnhancer:
                         "label": label,
                         "normalized_label": normalized_label,
                         "score": score,
+                        "source": str(raw_tag.get("source") or "llm"),
+                        "method": str(raw_tag.get("method") or "llm_selected"),
+                        "canonical_name": raw_tag.get("canonical_name"),
                     }
                 )
                 continue

@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
-from nir_tagging_service.tag_extraction import KeywordTagger
+from nir_tagging_service.schemas import TagCatalogEntry
+from nir_tagging_service.tag_extraction import KeywordTagger, TagCandidate, reconcile_tag_candidates
 
 
 class FakeKeywordExtractor:
@@ -211,3 +212,72 @@ def test_keyword_tagger_merges_mixed_phrases_with_punctuation_variants() -> None
         "rag системы",
         "semantic search",
     ]
+
+
+def test_reconcile_tag_candidates_matches_catalog_aliases_and_localizes_output() -> None:
+    catalog = [
+        TagCatalogEntry(
+            canonical_name="machine learning",
+            aliases=["ml", "машинное обучение"],
+            labels={
+                "ru": "машинное обучение",
+                "en": "machine learning",
+            },
+            category_codes=["technology_ai_ml_nlp_rag"],
+        )
+    ]
+
+    tags = reconcile_tag_candidates(
+        [
+            TagCandidate(
+                label="ML",
+                normalized_label="ml",
+                score=0.92,
+            )
+        ],
+        max_tags=5,
+        tagging_mode="existing_only",
+        existing_tags=catalog,
+        output_language="ru",
+        category_codes=["technology_ai_ml_nlp_rag"],
+    )
+
+    assert len(tags) == 1
+    assert tags[0].label == "машинное обучение"
+    assert tags[0].normalized_label == "machine learning"
+    assert tags[0].canonical_name == "machine learning"
+    assert tags[0].method == "catalog_alias_match"
+
+
+def test_reconcile_tag_candidates_curated_only_drops_unlisted_tags() -> None:
+    curated = [
+        TagCatalogEntry(
+            canonical_name="semantic search",
+            aliases=["semantic retrieval"],
+            labels={"en": "semantic search"},
+            category_codes=["technology_software_retrieval"],
+        )
+    ]
+
+    tags = reconcile_tag_candidates(
+        [
+            TagCandidate(
+                label="semantic search",
+                normalized_label="semantic search",
+                score=0.84,
+            ),
+            TagCandidate(
+                label="vector database",
+                normalized_label="vector database",
+                score=0.81,
+            ),
+        ],
+        max_tags=5,
+        tagging_mode="curated_only",
+        curated_tags=curated,
+        output_language="en",
+        category_codes=["technology_software_retrieval"],
+    )
+
+    assert [tag.normalized_label for tag in tags] == ["semantic search"]
+    assert tags[0].canonical_name == "semantic search"

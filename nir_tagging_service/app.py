@@ -9,6 +9,7 @@ from nir_tagging_service.api import create_api_router
 from nir_tagging_service.bootstrap import PipelineServices, build_default_pipeline_services
 from nir_tagging_service.config import Settings, get_settings
 from nir_tagging_service.db.models import Base
+from nir_tagging_service.db.schema import ensure_runtime_schema
 from nir_tagging_service.db.session import create_engine, create_session_factory
 from nir_tagging_service.observability import get_logger
 from nir_tagging_service.pipeline import process_job
@@ -28,6 +29,7 @@ def create_app(
     async def lifespan(_: FastAPI):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            await connection.run_sync(ensure_runtime_schema)
         yield
 
     async def process_job_runner(job_id: str) -> None:

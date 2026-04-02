@@ -178,6 +178,19 @@ def confidence_thresholds_for_chunk_count(num_chunks: int) -> tuple[float, float
     return LOW_CONFIDENCE_SCORE_THRESHOLD, LOW_CONFIDENCE_GAP_THRESHOLD
 
 
+def apply_score_boosts(
+    base_scores: dict[str, float],
+    score_boosts: dict[str, float] | None,
+) -> dict[str, float]:
+    if not score_boosts:
+        return dict(base_scores)
+
+    boosted: dict[str, float] = {}
+    for code, score in base_scores.items():
+        boosted[code] = max(0.0, min(1.0, float(score) + float(score_boosts.get(code, 0.0))))
+    return boosted
+
+
 class EmbeddingCategoryClassifier:
     def __init__(
         self,
@@ -213,6 +226,7 @@ class EmbeddingCategoryClassifier:
         categories: Sequence[CategoryDefinition],
         chunk_weights: Sequence[float],
         leaf_similarity_map: dict[str, float] | None = None,
+        score_boosts: dict[str, float] | None = None,
     ) -> dict[str, float]:
         similarity_matrix = cosine_similarity(document_embeddings, self._candidate_embeddings(categories))
         aggregated = aggregate_similarity_rows(similarity_matrix, chunk_weights)
@@ -221,7 +235,7 @@ class EmbeddingCategoryClassifier:
             for category, score in zip(categories, aggregated)
         }
         if leaf_similarity_map is None:
-            return direct_scores
+            return apply_score_boosts(direct_scores, score_boosts)
 
         combined_scores: dict[str, float] = {}
         for category in categories:
@@ -232,9 +246,13 @@ class EmbeddingCategoryClassifier:
             ]
             descendant_score = max(descendant_leaf_scores) if descendant_leaf_scores else direct_scores[category.code]
             combined_scores[category.code] = max(direct_scores[category.code], float(descendant_score))
-        return combined_scores
+        return apply_score_boosts(combined_scores, score_boosts)
 
-    def categorize(self, chunks: Sequence[str]) -> CategorizationResult:
+    def categorize(
+        self,
+        chunks: Sequence[str],
+        score_boosts: dict[str, float] | None = None,
+    ) -> CategorizationResult:
         if not chunks:
             raise ValueError("categorize() requires at least one chunk")
 
@@ -254,6 +272,7 @@ class EmbeddingCategoryClassifier:
             document_embeddings=document_embeddings,
             categories=self._leaf_categories,
             chunk_weights=chunk_weights,
+            score_boosts=score_boosts,
         )
 
         current_candidates = list(self.categories)
@@ -268,6 +287,7 @@ class EmbeddingCategoryClassifier:
                 categories=current_candidates,
                 chunk_weights=chunk_weights,
                 leaf_similarity_map=leaf_similarity_map,
+                score_boosts=score_boosts,
             )
             ranked = sorted(level_scores.items(), key=lambda item: item[1], reverse=True)
             best_code, best_score = ranked[0]

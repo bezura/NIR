@@ -18,6 +18,7 @@ LANGUAGE_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9+
 CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
 LATIN_RE = re.compile(r"[A-Za-z]")
 SUPPORTED_STOPWORD_LANGUAGES = ("en", "ru")
+SUPPORTED_OUTPUT_LANGUAGES = ("en", "ru")
 
 PROJECT_EDGE_STOPWORDS = {
     "article",
@@ -127,3 +128,19 @@ def edge_stopwords_for_profile(language_profile: LanguageProfile | None) -> froz
         combined.update(_library_stopwords(language))
 
     return frozenset(combined)
+
+
+def resolve_output_language(requested_language: str, language_profile: LanguageProfile | None) -> str | None:
+    if requested_language in SUPPORTED_OUTPUT_LANGUAGES:
+        return requested_language
+
+    if language_profile is None:
+        return None
+
+    if language_profile.dominant_language in SUPPORTED_OUTPUT_LANGUAGES:
+        return language_profile.dominant_language
+
+    if language_profile.secondary_language in SUPPORTED_OUTPUT_LANGUAGES:
+        return language_profile.secondary_language
+
+    return None
