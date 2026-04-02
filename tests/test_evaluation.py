@@ -9,17 +9,26 @@ from nir_tagging_service.tag_extraction import TagCandidate
 
 class FakeCategorizer:
     def categorize(self, chunks: list[str]) -> CategorizationResult:
+        domain = CategoryDefinition(
+            code="technology",
+            label="Технологии",
+            description="technology domain",
+        )
+        leaf = CategoryDefinition(
+            code="technology_software",
+            label="Технологии и разработка",
+            description="technology",
+        )
         return CategorizationResult(
-            category=CategoryDefinition(
-                code="technology_software",
-                label="Технологии и разработка",
-                description="technology",
-            ),
+            category=leaf,
             score=0.91,
             similarities={
                 "technology_software": 0.91,
                 "science_research": 0.42,
             },
+            category_path=[domain, leaf],
+            category_depth=2,
+            category_is_leaf=True,
         )
 
 
@@ -60,12 +69,18 @@ class FakeLongDocumentCategorizer:
     def categorize(self, chunks: list[str]) -> CategorizationResult:
         joined = "\n".join(chunks).lower()
         if "ambiguous" in joined:
+            domain = CategoryDefinition(
+                code="technology",
+                label="Технологии",
+                description="technology domain",
+            )
+            leaf = CategoryDefinition(
+                code="technology_software",
+                label="Технологии и разработка",
+                description="technology",
+            )
             return CategorizationResult(
-                category=CategoryDefinition(
-                    code="technology_software",
-                    label="Технологии и разработка",
-                    description="technology",
-                ),
+                category=leaf,
                 score=0.57,
                 similarities={
                     "technology_software": 0.57,
@@ -78,14 +93,23 @@ class FakeLongDocumentCategorizer:
                 low_confidence_reasons=["small_gap", "taxonomy_gap"],
                 num_chunks_scored=len(chunks),
                 informative_chunk_indices=[0, max(0, len(chunks) - 1)],
+                category_path=[domain, leaf],
+                category_depth=2,
+                category_is_leaf=True,
             )
 
+        domain = CategoryDefinition(
+            code="technology",
+            label="Технологии",
+            description="technology domain",
+        )
+        leaf = CategoryDefinition(
+            code="technology_software",
+            label="Технологии и разработка",
+            description="technology",
+        )
         return CategorizationResult(
-            category=CategoryDefinition(
-                code="technology_software",
-                label="Технологии и разработка",
-                description="technology",
-            ),
+            category=leaf,
             score=0.88,
             similarities={
                 "technology_software": 0.88,
@@ -98,6 +122,9 @@ class FakeLongDocumentCategorizer:
             low_confidence_reasons=[],
             num_chunks_scored=len(chunks),
             informative_chunk_indices=[0],
+            category_path=[domain, leaf],
+            category_depth=2,
+            category_is_leaf=True,
         )
 
 
@@ -127,6 +154,9 @@ def test_evaluate_dataset_returns_accuracy_summary(tmp_path) -> None:
 
     assert report["total_cases"] == 1
     assert report["category_accuracy"] == 1.0
+    assert report["exact_leaf_accuracy"] == 1.0
+    assert report["path_prefix_accuracy"] == 1.0
+    assert report["domain_accuracy"] == 1.0
     assert report["top_2_accuracy"] == 1.0
     assert report["short_document_accuracy"] == 1.0
     assert report["long_document_accuracy"] is None
@@ -163,6 +193,56 @@ def test_evaluate_dataset_accepts_samples_without_title(tmp_path) -> None:
 
     assert report["total_cases"] == 2
     assert report["category_accuracy"] == 1.0
+
+
+def test_evaluate_dataset_counts_ancestor_prediction_as_prefix_match(tmp_path) -> None:
+    from nir_tagging_service.evaluation import evaluate_dataset
+
+    class FakeHierarchicalCategorizer:
+        def categorize(self, chunks: list[str]) -> CategorizationResult:
+            domain = CategoryDefinition(
+                code="technology",
+                label="Технологии",
+                description="technology domain",
+            )
+            return CategorizationResult(
+                category=domain,
+                score=0.72,
+                similarities={
+                    "technology_software": 0.68,
+                    "science_research": 0.31,
+                },
+                low_confidence=True,
+                low_confidence_reasons=["stopped_before_leaf"],
+                category_path=[domain],
+                category_depth=1,
+                category_is_leaf=False,
+            )
+
+    dataset_path = tmp_path / "dataset-prefix.json"
+    dataset_path.write_text(
+        json.dumps(
+            [
+                {
+                    "kind": "short_note",
+                    "expected_category": "technology_software",
+                    "text": "System design note about APIs, deployment and retrieval.",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluate_dataset(
+        dataset_path=dataset_path,
+        categorizer=FakeHierarchicalCategorizer(),
+        tagger=FakeTagger(),
+    )
+
+    assert report["category_accuracy"] == 0.0
+    assert report["exact_leaf_accuracy"] == 0.0
+    assert report["path_prefix_accuracy"] == 1.0
+    assert report["domain_accuracy"] == 1.0
 
 
 def test_evaluate_dataset_loads_relative_file_path_from_dataset_directory(tmp_path) -> None:
@@ -299,6 +379,9 @@ def test_evaluate_long_document_dataset_reports_accuracy_and_low_confidence(tmp_
 
     assert report["total_cases"] == 2
     assert report["long_document_accuracy"] == 1.0
+    assert report["exact_leaf_accuracy"] == 1.0
+    assert report["path_prefix_accuracy"] == 1.0
+    assert report["domain_accuracy"] == 1.0
     assert report["top_2_accuracy"] == 1.0
     assert report["low_confidence_rate"] == 0.5
     assert report["low_confidence_accuracy"] == 1.0
@@ -325,7 +408,13 @@ def test_source_material_examples_reference_local_text_files_and_cover_multiple_
     assert len(dataset) >= 8
     assert any(sample.get("file_path") for sample in dataset)
     assert any("text" in sample for sample in dataset)
-    assert {"technology_software", "education_learning", "science_research"} <= {
+    assert {
+        "technology_software_tooling",
+        "technology_software_architecture",
+        "education_course_material",
+        "education_assessment_guidelines",
+        "research_literature_review",
+    } <= {
         sample["expected_category"] for sample in dataset
     }
     assert any("3D-сцену" in sample.get("text", "") for sample in dataset)

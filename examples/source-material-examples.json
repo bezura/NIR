@@ -9,7 +9,7 @@
         "installation"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_tooling",
     "text": "README-подобная заметка описывает локальный coding CLI: инструмент можно поставить через npm или Homebrew, затем запускать из терминала как отдельный агент для работы с кодом на своей машине. В тексте также упоминаются варианты использования из IDE, desktop app mode, вход через подписку ChatGPT или отдельный API key, а ещё ссылки на releases и документацию по установке."
   },
   {
@@ -22,7 +22,7 @@
         "quickstart"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_tooling",
     "text": "README описывает clean-room rewrite инструмента с Python-first деревом `src/` и отдельным Rust workspace. В summary перечисляются crates для API client, runtime, commands, plugins и CLI, а quickstart сводится к командам для сборки, вывода manifest/summary и запуска тестов. Акцент сделан на harness engineering, porting workflow и технической структуре репозитория."
   },
   {
@@ -30,7 +30,7 @@
     "metadata": {
       "title": "FastAPI recap note"
     },
-    "expected_category": "education_learning",
+    "expected_category": "education_course_material",
     "text": "Краткий tutorial recap объясняет, что в FastAPI достаточно один раз объявить типы параметров и моделей обычными Python-типами, чтобы получить editor support, валидацию входных данных, автоматическое преобразование данных из path/query/body и интерактивную документацию через Swagger UI и ReDoc. Это типичный обучающий и объясняющий материал по framework usage, а не архитектурная спецификация сервиса."
   },
   {
@@ -43,7 +43,7 @@
         "image generation"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_ai_ml_applied",
     "text": "Промо-заметка рассказывает о нейросети, которая превращает обычное фото в 3D-сцену: пользователь загружает изображение, модель достраивает глубину и пространство, после чего можно двигать виртуальную камеру, крутить ракурс и получать новые вариации кадра. В тексте делается акцент на простом пайплайне `загрузили фото -> достроили глубину -> получили новые углы обзора`, а также на том, что сервис работает бесплатно и без регистрации."
   },
   {
@@ -56,7 +56,7 @@
         "local models"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_ai_ml_applied",
     "text": "Короткий анонс описывает бесплатную ИИ-студию MimikaStudio для работы с голосом. В списке возможностей указаны клонирование голоса по трём секундам, генерация речи, создание аудиокниг и озвучивание текста, поддержка 23 языков, включая русский, а также работа на macOS, Windows и в вебе. Отдельно подчёркивается, что инструмент запускается локально, требует около 8 Гб ОЗУ и может использовать локальные модели без обязательной облачной зависимости."
   },
   {
@@ -69,7 +69,7 @@
         "контрольные точки"
       ]
     },
-    "expected_category": "education_learning",
+    "expected_category": "education_assessment_guidelines",
     "file_path": "source-materials/fos-nir-excerpt.txt"
   },
   {
@@ -82,7 +82,7 @@
         "search"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_architecture",
     "file_path": "source-materials/smart-favorites-excerpt.txt"
   },
   {
@@ -95,7 +95,7 @@
         "KeyBERT"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_stack_selection",
     "file_path": "source-materials/tagging-stack-selection-excerpt.txt"
   },
   {
@@ -108,7 +108,7 @@
         "pass@k"
       ]
     },
-    "expected_category": "science_research",
+    "expected_category": "research_literature_review",
     "file_path": "source-materials/llm-evaluation-review-excerpt.txt"
   }
 ]

@@ -9,7 +9,7 @@
         "semantic search"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_retrieval",
     "text": "Команда описывает сервис для корпоративной knowledge base: документы индексируются в vector database, запрос сначала проходит lexical search, затем retrieval pipeline добавляет embeddings и reranking. В заметке обсуждаются API endpoints, chunking strategy, latency budget и то, как backend должен обрабатывать mixed RU/EN технические термины."
   },
   {
@@ -21,7 +21,7 @@
         "multilingual evaluation"
       ]
     },
-    "expected_category": "science_research",
+    "expected_category": "research_benchmark_evaluation",
     "text": "В исследовательской заметке сравниваются методы автоматического тегирования для русских и английских текстов. Автор описывает постановку эксперимента, метрики precision@k и top-2 accuracy, а также ограничения выборки для multilingual evaluation."
   },
   {
@@ -29,12 +29,12 @@
     "metadata": {
       "title": "Syllabus for Intro to Data Analysis"
     },
-    "expected_category": "education_learning",
+    "expected_category": "education_course_material",
     "text": "The document outlines a semester plan for an introductory data analysis course, including weekly lectures, reading assignments, lab sessions, and a final project on text classification."
   },
   {
     "kind": "short_note",
-    "expected_category": "law_policy",
+    "expected_category": "governance_compliance_policy",
     "text": "В документе перечислены требования к хранению пользовательских данных, правила согласия на обработку персональной информации, сроки удаления записей и ответственность подразделений за соблюдение внутренней compliance policy."
   },
   {
@@ -47,7 +47,7 @@
         "retention"
       ]
     },
-    "expected_category": "business_product",
+    "expected_category": "business_roadmap_review",
     "text": "В продуктовой записке разбираются причины просадки activation rate, приоритеты следующего квартала и гипотеза о том, что self-serve onboarding повысит conversion. Команда сравнивает churn, CAC и expected revenue impact для трёх инициатив."
   },
   {
@@ -58,7 +58,7 @@
         "ideas backlog"
       ]
     },
-    "expected_category": "personal_knowledge",
+    "expected_category": "personal_ideas_backlog",
     "text": "Записать идеи для следующего спринта: проверить новую схему дедупликации тегов, не забыть обновить benchmark после релиза и отдельно выписать вопросы к обсуждению на синк с командой."
   },
   {
@@ -71,7 +71,7 @@
         "vector database"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_architecture",
     "file_path": "long-documents/retrieval-platform.txt"
   },
   {
@@ -83,7 +83,7 @@
         "multilingual evaluation"
       ]
     },
-    "expected_category": "science_research",
+    "expected_category": "research_literature_review",
     "file_path": "long-documents/research-review.txt"
   },
   {
@@ -91,7 +91,7 @@
     "metadata": {
       "title": "Программа практикума по анализу текстов и информационному поиску"
     },
-    "expected_category": "education_learning",
+    "expected_category": "education_practicum_lab",
     "file_path": "long-documents/course-practicum.txt"
   }
 ]

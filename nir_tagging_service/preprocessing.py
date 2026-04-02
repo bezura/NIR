@@ -97,6 +97,36 @@ def attach_context_to_chunks(chunks: list[str], context_prefix: str) -> list[str
     return contextualized
 
 
+def select_long_document_categorization_chunks(chunks: list[str]) -> list[str]:
+    if len(chunks) <= 3:
+        return list(chunks)
+
+    selected = [chunks[0], chunks[1], chunks[-1]]
+    deduped: list[str] = []
+    seen: set[str] = set()
+
+    for chunk in selected:
+        key = chunk.casefold()
+        if key in seen:
+            continue
+        deduped.append(chunk)
+        seen.add(key)
+
+    return deduped
+
+
+def build_categorization_chunks(chunks: list[str], context_prefix: str, content_type: str) -> list[str]:
+    base_chunks = list(chunks)
+    if content_type == "long_document":
+        base_chunks = select_long_document_categorization_chunks(chunks)
+    contextualized = attach_context_to_chunks(base_chunks, context_prefix)
+    if not context_prefix:
+        return contextualized
+    if content_type != "long_document":
+        return contextualized
+    return [context_prefix, *contextualized]
+
+
 def classify_content_type(source: str, cleaned_text: str) -> str:
     if len(cleaned_text) > LONG_DOCUMENT_THRESHOLD:
         return "long_document"
@@ -148,8 +178,7 @@ def prepare_text(
     content_type = classify_content_type(source, cleaned_text)
     chunks = split_into_chunks(cleaned_text)
     chunked = len(chunks) > 1
-    categorization_chunks = list(chunks)
-    categorization_chunks = attach_context_to_chunks(categorization_chunks, context_prefix)
+    categorization_chunks = build_categorization_chunks(chunks, context_prefix, content_type)
     tag_extraction_chunks = attach_context_to_chunks(chunks, context_prefix)
 
     return PreparedText(

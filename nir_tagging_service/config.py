@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     app_name: str = "tagging-subsystem"
     api_prefix: str = "/api/v1/tagging"
     database_url: str = "postgresql+psycopg://tagging:tagging@localhost:5432/tagging"
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: [
+            "localhost","*"
+        ]
+    )
     embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     openai_base_url: str | None = Field(default=None, validation_alias="OPENAI_BASE_URL")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from nir_tagging_service.category_catalog import DEFAULT_CATEGORIES, iter_categories
 from nir_tagging_service.preprocessing import prepare_text
 from nir_tagging_service.tag_extraction import KeywordTagger
 
@@ -46,6 +47,28 @@ def _safe_accuracy(values: list[bool]) -> float | None:
     return sum(values) / len(values)
 
 
+def _taxonomy_paths() -> dict[str, list[str]]:
+    paths: dict[str, list[str]] = {}
+
+    def visit(node, prefix: list[str]) -> None:
+        current = [*prefix, node.code]
+        paths[node.code] = current
+        for child in node.children:
+            visit(child, current)
+
+    for root in DEFAULT_CATEGORIES:
+        visit(root, [])
+
+    return paths
+
+
+def _predicted_path_codes(category_result: Any) -> list[str]:
+    category_path = getattr(category_result, "category_path", None) or []
+    if category_path:
+        return [node.code for node in category_path]
+    return [category_result.category.code]
+
+
 def _evaluate_category_rows(
     samples: list[dict[str, Any]],
     dataset_path: Path,
@@ -67,6 +90,7 @@ def _evaluate_category_rows(
                 "kind": sample["kind"],
                 "expected_category": sample["expected_category"],
                 "predicted_category": category_result.category.code,
+                "predicted_path": _predicted_path_codes(category_result),
                 "top_2_codes": [item["code"] for item in category_result.top_k(2)],
                 "low_confidence": category_result.low_confidence,
                 "expected_low_confidence": sample.get("expected_low_confidence"),
@@ -84,8 +108,19 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
         categorizer=categorizer,
         tagger=tagger,
     )
+    taxonomy_paths = _taxonomy_paths()
 
     exact_matches = [row["predicted_category"] == row["expected_category"] for row in rows]
+    prefix_matches = [
+        row["predicted_category"] in taxonomy_paths.get(row["expected_category"], [row["expected_category"]])
+        for row in rows
+    ]
+    domain_matches = [
+        bool(row["predicted_path"])
+        and bool(taxonomy_paths.get(row["expected_category"]))
+        and row["predicted_path"][0] == taxonomy_paths[row["expected_category"]][0]
+        for row in rows
+    ]
     top_2_matches = [row["expected_category"] in row["top_2_codes"] for row in rows]
     short_matches = [
         row["predicted_category"] == row["expected_category"]
@@ -106,6 +141,9 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
     return {
         "total_cases": len(rows),
         "category_accuracy": _safe_accuracy(exact_matches),
+        "exact_leaf_accuracy": _safe_accuracy(exact_matches),
+        "path_prefix_accuracy": _safe_accuracy(prefix_matches),
+        "domain_accuracy": _safe_accuracy(domain_matches),
         "top_2_accuracy": _safe_accuracy(top_2_matches),
         "short_document_accuracy": _safe_accuracy(short_matches),
         "long_document_accuracy": _safe_accuracy(long_matches),
@@ -126,8 +164,19 @@ def evaluate_long_document_dataset(dataset_path: Path, categorizer: Any, tagger:
         categorizer=categorizer,
         tagger=tagger,
     )
+    taxonomy_paths = _taxonomy_paths()
 
     exact_matches = [row["predicted_category"] == row["expected_category"] for row in rows]
+    prefix_matches = [
+        row["predicted_category"] in taxonomy_paths.get(row["expected_category"], [row["expected_category"]])
+        for row in rows
+    ]
+    domain_matches = [
+        bool(row["predicted_path"])
+        and bool(taxonomy_paths.get(row["expected_category"]))
+        and row["predicted_path"][0] == taxonomy_paths[row["expected_category"]][0]
+        for row in rows
+    ]
     top_2_matches = [row["expected_category"] in row["top_2_codes"] for row in rows]
     low_confidence_rows = [row for row in rows if row["low_confidence"]]
     low_confidence_matches = [
@@ -146,6 +195,9 @@ def evaluate_long_document_dataset(dataset_path: Path, categorizer: Any, tagger:
     return {
         "total_cases": len(rows),
         "long_document_accuracy": _safe_accuracy(exact_matches),
+        "exact_leaf_accuracy": _safe_accuracy(exact_matches),
+        "path_prefix_accuracy": _safe_accuracy(prefix_matches),
+        "domain_accuracy": _safe_accuracy(domain_matches),
         "top_2_accuracy": _safe_accuracy(top_2_matches),
         "low_confidence_rate": _safe_accuracy([row["low_confidence"] for row in rows]),
         "low_confidence_accuracy": _safe_accuracy(low_confidence_matches),

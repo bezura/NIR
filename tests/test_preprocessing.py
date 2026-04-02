@@ -27,10 +27,8 @@ def test_prepare_text_chunks_long_document_and_uses_all_chunks_for_categorizatio
     assert result.chunked is True
     assert result.content_type == "long_document"
     assert len(result.chunks) >= 3
-    assert result.categorization_chunks == result.tag_extraction_chunks
-    assert len(result.categorization_chunks) == len(result.chunks)
+    assert len(result.categorization_chunks) < len(result.tag_extraction_chunks)
     assert result.tag_extraction_chunks == result.chunks
-    assert len(result.categorization_text) == len(result.tag_extraction_text)
     assert all(len(chunk) <= 1200 for chunk in result.chunks)
 
 
@@ -63,3 +61,25 @@ def test_prepare_text_detects_mixed_language_and_uses_metadata_context() -> None
     assert result.language_profile.distribution["en"] > 0.15
     assert result.categorization_chunks[0].startswith("Semantic Search в RAG-системах")
     assert "retrieval" in result.tag_extraction_chunks[0]
+
+
+def test_prepare_text_adds_dedicated_context_chunk_for_long_document_categorization() -> None:
+    text = ("Backend architecture observability deployment API contracts retrieval platform. " * 80).strip()
+
+    result = prepare_text(
+        text,
+        source="document",
+        metadata={
+            "title": "Architecture of a Multilingual Retrieval Platform",
+            "keywords": ["semantic search", "vector database", "retrieval pipeline"],
+        },
+    )
+
+    assert result.chunked is True
+    assert result.categorization_chunks[0] == (
+        "Architecture of a Multilingual Retrieval Platform\n"
+        "semantic search, vector database, retrieval pipeline"
+    )
+    assert result.categorization_chunks[1].startswith("Architecture of a Multilingual Retrieval Platform")
+    assert result.tag_extraction_chunks[0].startswith("Architecture of a Multilingual Retrieval Platform")
+    assert result.categorization_chunks != result.tag_extraction_chunks

@@ -20,17 +20,44 @@ async def _count_rows(app, model) -> int:
 
 class FakeCategorizer:
     def categorize(self, chunks: list[str]) -> CategorizationResult:
+        domain = CategoryDefinition(
+            code="technology",
+            label="Технологии",
+            description="technology",
+        )
+        leaf = CategoryDefinition(
+            code="technology_software",
+            label="Технологии и разработка",
+            description="technology",
+        )
         return CategorizationResult(
-            category=CategoryDefinition(
-                code="technology_software",
-                label="Технологии и разработка",
-                description="technology",
-            ),
+            category=leaf,
             score=0.84,
             similarities={
                 "technology_software": 0.84,
                 "science_research": 0.41,
             },
+            category_path=[domain, leaf],
+            category_depth=2,
+            category_is_leaf=True,
+            classification_trace=[
+                {
+                    "depth": 1,
+                    "selected_code": "technology",
+                    "top_1_score": 0.88,
+                    "top_2_score": 0.36,
+                    "confidence_gap": 0.52,
+                    "accepted": True,
+                },
+                {
+                    "depth": 2,
+                    "selected_code": "technology_software",
+                    "top_1_score": 0.84,
+                    "top_2_score": 0.41,
+                    "confidence_gap": 0.43,
+                    "accepted": True,
+                },
+            ],
         )
 
 
@@ -63,12 +90,18 @@ class FailingCategorizer:
 
 class FakeLowConfidenceCategorizer:
     def categorize(self, chunks: list[str]) -> CategorizationResult:
+        domain = CategoryDefinition(
+            code="technology",
+            label="Технологии",
+            description="technology",
+        )
+        branch = CategoryDefinition(
+            code="technology_software",
+            label="Технологии и разработка",
+            description="technology",
+        )
         return CategorizationResult(
-            category=CategoryDefinition(
-                code="technology_software",
-                label="Технологии и разработка",
-                description="technology",
-            ),
+            category=branch,
             score=0.58,
             similarities={
                 "technology_software": 0.58,
@@ -79,9 +112,30 @@ class FakeLowConfidenceCategorizer:
             top_2_score=0.55,
             confidence_gap=0.03,
             low_confidence=True,
-            low_confidence_reasons=["small_gap", "taxonomy_gap"],
+            low_confidence_reasons=["small_gap", "taxonomy_gap", "stopped_before_leaf"],
             num_chunks_scored=5,
             informative_chunk_indices=[0, 4],
+            category_path=[domain, branch],
+            category_depth=2,
+            category_is_leaf=False,
+            classification_trace=[
+                {
+                    "depth": 1,
+                    "selected_code": "technology",
+                    "top_1_score": 0.81,
+                    "top_2_score": 0.33,
+                    "confidence_gap": 0.48,
+                    "accepted": True,
+                },
+                {
+                    "depth": 2,
+                    "selected_code": "technology_software_backend",
+                    "top_1_score": 0.58,
+                    "top_2_score": 0.55,
+                    "confidence_gap": 0.03,
+                    "accepted": False,
+                },
+            ],
         )
 
 
@@ -431,6 +485,13 @@ def test_result_response_marks_low_confidence_classification_in_signals(tmp_path
         assert classification["num_chunks_scored"] == 5
         assert classification["informative_chunk_indices"] == [0, 4]
         assert "taxonomy_gap" in classification["low_confidence_reasons"]
+        assert classification["category_depth"] == 2
+        assert classification["category_is_leaf"] is False
+        assert [node["code"] for node in classification["category_path"]] == [
+            "technology",
+            "technology_software",
+        ]
+        assert classification["classification_trace"][-1]["accepted"] is False
 
 
 def test_in_memory_sqlite_uses_same_engine_for_startup_and_requests() -> None:

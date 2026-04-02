@@ -217,6 +217,16 @@ async def process_job(
                     "num_chunks_scored": category_result.num_chunks_scored or len(prepared.categorization_chunks),
                     "informative_chunk_indices": list(category_result.informative_chunk_indices),
                     "num_informative_chunks": len(category_result.informative_chunk_indices),
+                    "category_path": [
+                        {
+                            "code": node.code,
+                            "label": node.label,
+                        }
+                        for node in category_result.category_path
+                    ],
+                    "category_depth": category_result.category_depth,
+                    "category_is_leaf": category_result.category_is_leaf,
+                    "classification_trace": list(category_result.classification_trace),
                 },
                 "llm_postprocessed": False,
                 "timings_ms": dict(timings_ms),

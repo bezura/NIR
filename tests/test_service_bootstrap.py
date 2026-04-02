@@ -36,6 +36,26 @@ def test_readiness_endpoint_reports_service_readiness(tmp_path) -> None:
     }
 
 
+def test_cors_preflight_allows_local_demo_frontend(tmp_path) -> None:
+    from nir_tagging_service.app import create_app
+
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-cors.db'}")
+
+    with TestClient(create_app(settings=settings)) as client:
+        response = client.options(
+            "/api/v1/tagging/jobs",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] in {"http://localhost:5173", "*"}
+    assert "POST" in response.headers["access-control-allow-methods"]
+
+
 def test_api_router_factory_registers_expected_paths() -> None:
     from nir_tagging_service.api import create_api_router
 

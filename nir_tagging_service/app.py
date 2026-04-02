@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from nir_tagging_service.api import create_api_router
 from nir_tagging_service.bootstrap import PipelineServices, build_default_pipeline_services
@@ -43,6 +44,13 @@ def create_app(
         docs_url=f"{current_settings.api_prefix}/docs",
         redoc_url=f"{current_settings.api_prefix}/redoc",
         openapi_url=f"{current_settings.api_prefix}/openapi.json",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=current_settings.cors_allowed_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.state.settings = current_settings
     app.state.engine = engine

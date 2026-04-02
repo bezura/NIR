@@ -9,7 +9,7 @@
         "retrieval pipeline"
       ]
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_architecture",
     "expected_low_confidence": false,
     "file_path": "long-documents/retrieval-platform.txt"
   },
@@ -22,7 +22,7 @@
         "multilingual evaluation"
       ]
     },
-    "expected_category": "science_research",
+    "expected_category": "research_literature_review",
     "expected_low_confidence": false,
     "file_path": "long-documents/research-review.txt"
   },
@@ -31,7 +31,7 @@
     "metadata": {
       "title": "Text Analysis Practicum and Course Plan"
     },
-    "expected_category": "education_learning",
+    "expected_category": "education_practicum_lab",
     "expected_low_confidence": false,
     "file_path": "long-documents/course-practicum.txt"
   },
@@ -40,7 +40,7 @@
     "metadata": {
       "title": "Ambiguous research and platform overview"
     },
-    "expected_category": "technology_software",
+    "expected_category": "technology_software_architecture",
     "expected_low_confidence": true,
     "file_path": "long-documents/ambiguous-overview.txt"
   }
