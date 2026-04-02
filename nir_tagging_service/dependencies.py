@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from logging import Logger
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from nir_tagging_service.bootstrap import PipelineServices
 from nir_tagging_service.config import Settings
 
 
-SessionFactory = Callable[[], Any]
-ProcessJobCallable = Callable[[str], None]
+SessionFactory = async_sessionmaker[AsyncSession]
+ProcessJobCallable = Callable[[str], Awaitable[None]]
 
 
 def get_settings(request: Request) -> Settings:
@@ -21,7 +23,7 @@ def get_session_factory(request: Request) -> SessionFactory:
     return request.app.state.session_factory
 
 
-def get_pipeline_services(request: Request) -> Any:
+def get_pipeline_services(request: Request) -> PipelineServices:
     return request.app.state.pipeline_services
 
 
@@ -35,6 +37,6 @@ def get_process_job(request: Request) -> ProcessJobCallable:
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 SessionFactoryDep = Annotated[SessionFactory, Depends(get_session_factory)]
-PipelineServicesDep = Annotated[Any, Depends(get_pipeline_services)]
+PipelineServicesDep = Annotated[PipelineServices, Depends(get_pipeline_services)]
 LoggerDep = Annotated[Logger, Depends(get_logger)]
 ProcessJobDep = Annotated[ProcessJobCallable, Depends(get_process_job)]

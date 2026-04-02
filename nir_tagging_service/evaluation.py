@@ -81,7 +81,7 @@ def format_report(report: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    from nir_tagging_service.app import build_default_pipeline_services
+    from nir_tagging_service.bootstrap import build_default_pipeline_services
     from nir_tagging_service.config import get_settings
 
     dataset_path = _repo_root() / "examples" / "quality-evaluation-dataset.json"

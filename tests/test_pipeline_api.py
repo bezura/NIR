@@ -1,11 +1,21 @@
-from fastapi.testclient import TestClient
+import asyncio
 
-from nir_tagging_service.app import PipelineServices, create_app
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+
+from nir_tagging_service.app import create_app
+from nir_tagging_service.bootstrap import PipelineServices
 from nir_tagging_service.category_catalog import CategoryDefinition
 from nir_tagging_service.categorization import CategorizationResult
 from nir_tagging_service.config import Settings
 from nir_tagging_service.db.models import TaggingJob, TaggingResult
 from nir_tagging_service.tag_extraction import TagCandidate
+
+
+async def _count_rows(app, model) -> int:
+    async with app.state.session_factory() as session:
+        statement = select(func.count()).select_from(model)
+        return await session.scalar(statement)
 
 
 class FakeCategorizer:
@@ -102,9 +112,8 @@ def test_submit_job_persists_completed_result_and_status(tmp_path) -> None:
         assert result_response.json()["category"]["code"] == "technology_software"
         assert len(result_response.json()["tags"]) == 2
 
-        with app.state.session_factory() as session:
-            assert session.query(TaggingJob).count() == 1
-            assert session.query(TaggingResult).count() == 1
+        assert asyncio.run(_count_rows(app, TaggingJob)) == 1
+        assert asyncio.run(_count_rows(app, TaggingResult)) == 1
 
 
 def test_failed_pipeline_marks_job_failed_and_persists_error(tmp_path) -> None:

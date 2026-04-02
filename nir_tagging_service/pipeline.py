@@ -3,10 +3,13 @@ from __future__ import annotations
 from dataclasses import asdict
 from logging import Logger
 from time import perf_counter
-from typing import Any
 
+from fastapi.concurrency import run_in_threadpool
 from pydantic import TypeAdapter
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from nir_tagging_service.bootstrap import PipelineServices
 from nir_tagging_service.db.models import Document, TaggingJob, TaggingResult, utc_now
 from nir_tagging_service.observability import log_event, track_stage
 from nir_tagging_service.preprocessing import prepare_text
@@ -40,12 +43,12 @@ class ResultNotReadyError(Exception):
         super().__init__(f"Job '{job_id}' is still {status}")
 
 
-def create_tagging_job(
-    session_factory: Any,
+async def create_tagging_job(
+    session_factory: async_sessionmaker[AsyncSession],
     payload: CreateTaggingJobRequest,
     api_prefix: str,
 ) -> tuple[CreateTaggingJobResponse, str, str, str]:
-    with session_factory() as session:
+    async with session_factory() as session:
         document = Document(
             source=payload.source,
             text=payload.text,
@@ -57,9 +60,9 @@ def create_tagging_job(
             options_json=payload.options.model_dump(),
         )
         session.add_all([document, job])
-        session.commit()
-        session.refresh(document)
-        session.refresh(job)
+        await session.commit()
+        await session.refresh(document)
+        await session.refresh(job)
 
     response = CreateTaggingJobResponse(
         job_id=job.id,
@@ -71,9 +74,12 @@ def create_tagging_job(
     return response, job.id, document.id, job.status
 
 
-def fetch_job_status(session_factory: Any, job_id: str) -> JobStatusResponse:
-    with session_factory() as session:
-        job = session.get(TaggingJob, job_id)
+async def fetch_job_status(
+    session_factory: async_sessionmaker[AsyncSession],
+    job_id: str,
+) -> JobStatusResponse:
+    async with session_factory() as session:
+        job = await session.get(TaggingJob, job_id)
         if job is None:
             raise JobNotFoundError(job_id)
 
@@ -93,9 +99,12 @@ def fetch_job_status(session_factory: Any, job_id: str) -> JobStatusResponse:
         )
 
 
-def fetch_job_result(session_factory: Any, job_id: str) -> JobResultResponse:
-    with session_factory() as session:
-        job = session.get(TaggingJob, job_id)
+async def fetch_job_result(
+    session_factory: async_sessionmaker[AsyncSession],
+    job_id: str,
+) -> JobResultResponse:
+    async with session_factory() as session:
+        job = await session.get(TaggingJob, job_id)
         if job is None:
             raise JobNotFoundError(job_id)
 
@@ -108,7 +117,10 @@ def fetch_job_result(session_factory: Any, job_id: str) -> JobResultResponse:
         if job.status != "completed":
             raise ResultNotReadyError(job_id, job.status)
 
-        result = session.query(TaggingResult).filter(TaggingResult.job_id == job_id).one()
+        result = await session.scalar(select(TaggingResult).where(TaggingResult.job_id == job_id))
+        if result is None:
+            raise ResultNotReadyError(job_id, job.status)
+
         return JobResultResponse(
             job_id=job.id,
             document_id=result.document_id,
@@ -124,14 +136,14 @@ def fetch_job_result(session_factory: Any, job_id: str) -> JobResultResponse:
         )
 
 
-def process_job(
+async def process_job(
     job_id: str,
-    session_factory: Any,
-    services: Any,
+    session_factory: async_sessionmaker[AsyncSession],
+    services: PipelineServices,
     logger: Logger,
 ) -> None:
-    with session_factory() as session:
-        job = session.get(TaggingJob, job_id)
+    async with session_factory() as session:
+        job = await session.get(TaggingJob, job_id)
         if job is None:
             return
 
@@ -139,7 +151,7 @@ def process_job(
             total_started = perf_counter()
             job.status = "processing"
             job.started_at = utc_now()
-            session.commit()
+            await session.commit()
             log_event(
                 logger,
                 "job_processing_started",
@@ -148,19 +160,29 @@ def process_job(
                 status=job.status,
             )
 
-            document = session.get(Document, job.document_id)
+            document = await session.get(Document, job.document_id)
+            if document is None:
+                raise RuntimeError(f"Document '{job.document_id}' was not found")
+
             timings_ms: dict[str, float] = {}
 
             with track_stage(timings_ms, "preprocessing"):
-                prepared = prepare_text(document.text, document.source)
+                prepared = await run_in_threadpool(prepare_text, document.text, document.source)
 
             max_tags = job.options_json.get("max_tags", 5)
 
             with track_stage(timings_ms, "categorization"):
-                category_result = services.categorizer.categorize(prepared.categorization_chunks)
+                category_result = await run_in_threadpool(
+                    services.categorizer.categorize,
+                    prepared.categorization_chunks,
+                )
 
             with track_stage(timings_ms, "tagging"):
-                tags = services.tagger.extract_tags(prepared.tag_extraction_chunks, max_tags=max_tags)
+                tags = await run_in_threadpool(
+                    services.tagger.extract_tags,
+                    prepared.tag_extraction_chunks,
+                    max_tags=max_tags,
+                )
 
             tags_payload = [asdict(tag) for tag in tags]
             explanation = None
@@ -174,14 +196,15 @@ def process_job(
                     "content_type_hint_applied": False,
                 },
                 "llm_postprocessed": False,
-                "timings_ms": timings_ms,
+                "timings_ms": dict(timings_ms),
                 "category_scores_top_k": category_result.top_k(3),
             }
 
             if job.options_json.get("use_llm_postprocess") and services.enhancer is not None:
                 try:
                     with track_stage(timings_ms, "llm_postprocess"):
-                        enhanced = services.enhancer.enhance(
+                        enhanced = await run_in_threadpool(
+                            services.enhancer.enhance,
                             text=document.text,
                             category={
                                 "code": category_result.category.code,
@@ -221,19 +244,23 @@ def process_job(
                 signals_json=signals,
                 explanation=explanation,
             )
+
             with track_stage(timings_ms, "db_write"):
                 session.add(result)
-                job.status = "completed"
-                job.finished_at = utc_now()
-                session.commit()
+                await session.flush()
 
             timings_ms["total"] = round((perf_counter() - total_started) * 1000, 3)
-            result.signals_json = signals
-            session.commit()
+            result.signals_json = {
+                **signals,
+                "timings_ms": dict(timings_ms),
+            }
+            job.status = "completed"
+            job.finished_at = utc_now()
+            await session.commit()
             log_event(logger, "job_completed", job_id=job.id, document_id=document.id, status=job.status)
         except Exception as exc:  # noqa: BLE001
-            session.rollback()
-            failed_job = session.get(TaggingJob, job_id)
+            await session.rollback()
+            failed_job = await session.get(TaggingJob, job_id)
             if failed_job is None:
                 return
 
@@ -241,7 +268,7 @@ def process_job(
             failed_job.error_code = "processing_failed"
             failed_job.error_message = str(exc)
             failed_job.finished_at = utc_now()
-            session.commit()
+            await session.commit()
             log_event(
                 logger,
                 "job_failed",

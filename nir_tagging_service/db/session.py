@@ -1,28 +1,35 @@
-from sqlalchemy import Engine, create_engine as sa_create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from nir_tagging_service.config import Settings, get_settings
 
 
-def create_engine(settings: Settings | None = None) -> Engine:
+def _normalize_database_url(database_url: str) -> str:
+    if database_url.startswith("sqlite+aiosqlite://"):
+        return database_url
+    if database_url.startswith("sqlite://"):
+        return database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    return database_url
+
+
+def create_engine(settings: Settings | None = None) -> AsyncEngine:
     current_settings = settings or get_settings()
     engine_kwargs = {
-        "future": True,
         "pool_pre_ping": True,
     }
+    database_url = _normalize_database_url(current_settings.database_url)
 
-    if current_settings.database_url.startswith("sqlite"):
+    if database_url.startswith("sqlite+aiosqlite://"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
-        if current_settings.database_url == "sqlite:///:memory:":
+        if database_url == "sqlite+aiosqlite:///:memory:":
             engine_kwargs["poolclass"] = StaticPool
 
-    return sa_create_engine(current_settings.database_url, **engine_kwargs)
+    return create_async_engine(database_url, **engine_kwargs)
 
 
 def create_session_factory(
     settings: Settings | None = None,
-    engine: Engine | None = None,
-) -> sessionmaker:
+    engine: AsyncEngine | None = None,
+) -> async_sessionmaker[AsyncSession]:
     engine = engine or create_engine(settings)
-    return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    return async_sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

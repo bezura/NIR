@@ -1,6 +1,8 @@
 import inspect
+from importlib import import_module
 
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from nir_tagging_service.config import Settings
 
@@ -47,6 +49,14 @@ def test_api_router_factory_registers_expected_paths() -> None:
     assert "/api/v1/tagging/jobs/{job_id}/result" in paths
 
 
+def test_target_module_layout_exists() -> None:
+    assert import_module("nir_tagging_service.bootstrap")
+    assert import_module("nir_tagging_service.pipeline")
+    assert import_module("nir_tagging_service.api")
+    assert import_module("nir_tagging_service.api.system")
+    assert import_module("nir_tagging_service.api.jobs")
+
+
 def test_registered_http_handlers_are_async(tmp_path) -> None:
     from nir_tagging_service.app import create_app
 
@@ -68,3 +78,13 @@ def test_registered_http_handlers_are_async(tmp_path) -> None:
 
     assert route_map.keys() == target_paths
     assert all(inspect.iscoroutinefunction(endpoint) for endpoint in route_map.values())
+
+
+def test_app_exposes_async_session_factory(tmp_path) -> None:
+    from nir_tagging_service.app import create_app
+
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-async-session.db'}")
+    app = create_app(settings=settings)
+
+    assert isinstance(app.state.session_factory, async_sessionmaker)
+    assert app.state.session_factory.class_ is AsyncSession
