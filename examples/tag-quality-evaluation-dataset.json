@@ -1,0 +1,50 @@
+[
+  {
+    "kind": "short_note",
+    "metadata": {
+      "title": "Semantic Search в RAG-системах"
+    },
+    "text": "RAG-системы применяются для semantic search по корпоративным документам и knowledge base.",
+    "expected_tags": [
+      "semantic search",
+      "rag системы",
+      "корпоративные документы"
+    ]
+  },
+  {
+    "kind": "short_note",
+    "metadata": {
+      "title": "Векторные базы данных для retrieval pipeline"
+    },
+    "text": "Векторные базы данных используются в retrieval pipeline для быстрого семантического поиска.",
+    "expected_tags": [
+      "векторные базы данных",
+      "retrieval pipeline",
+      "семантический поиск"
+    ]
+  },
+  {
+    "kind": "short_note",
+    "metadata": {
+      "title": "Ключевые фразы и тематическое моделирование"
+    },
+    "text": "Тематическое моделирование и выделение ключевых фраз помогают в автоматическом тегировании.",
+    "expected_tags": [
+      "тематическое моделирование",
+      "ключевые фразы",
+      "автоматическое тегирование"
+    ]
+  },
+  {
+    "kind": "short_note",
+    "metadata": {
+      "title": "Embeddings for Document Categorization"
+    },
+    "text": "Document embeddings improve document categorization, semantic retrieval, and annotation quality.",
+    "expected_tags": [
+      "document embeddings",
+      "document categorization",
+      "semantic retrieval"
+    ]
+  }
+]

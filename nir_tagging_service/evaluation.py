@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from nir_tagging_service.preprocessing import prepare_text
+from nir_tagging_service.tag_extraction import KeywordTagger
 
 
 def _repo_root() -> Path:
@@ -76,6 +77,51 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
     }
 
 
+def evaluate_tag_dataset(dataset_path: Path, tagger: Any, max_tags: int = 5) -> dict[str, Any]:
+    samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
+    total_matches = 0
+    total_predictions = 0
+    expected_matches: list[float] = []
+
+    for sample in samples:
+        text = _load_dataset_text(sample, Path(dataset_path))
+        source = "document" if sample["kind"] == "long_document" else "article"
+        metadata = sample.get("metadata") or {}
+        prepared = prepare_text(text, source, metadata=metadata)
+        predicted = tagger.extract_tags(
+            prepared.tag_extraction_chunks,
+            max_tags=max_tags,
+            language_profile=prepared.language_profile,
+            title_text=prepared.title_text,
+        )
+        predicted_labels = [
+            KeywordTagger.normalize_keyword(tag.normalized_label)
+            for tag in predicted[:max_tags]
+        ]
+        expected_labels = {
+            KeywordTagger.normalize_keyword(label)
+            for label in sample.get("expected_tags", [])
+        }
+        matched = sum(1 for label in predicted_labels if label in expected_labels)
+        total_matches += matched
+        total_predictions += len(predicted_labels)
+        expected_matches.append(float(matched))
+
+    precision_at_5 = None
+    if total_predictions:
+        precision_at_5 = round(total_matches / total_predictions, 3)
+
+    return {
+        "total_cases": len(samples),
+        "precision_at_5": precision_at_5,
+        "average_expected_matches": _safe_accuracy(
+            [match / 1.0 for match in expected_matches]
+        )
+        if expected_matches
+        else None,
+    }
+
+
 def format_report(report: dict[str, Any]) -> str:
     return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
 
@@ -84,13 +130,21 @@ def main() -> None:
     from nir_tagging_service.bootstrap import build_default_pipeline_services
     from nir_tagging_service.config import get_settings
 
-    dataset_path = _repo_root() / "examples" / "quality-evaluation-dataset.json"
+    category_dataset_path = _repo_root() / "examples" / "quality-evaluation-dataset.json"
+    tag_dataset_path = _repo_root() / "examples" / "tag-quality-evaluation-dataset.json"
     services = build_default_pipeline_services(get_settings())
-    report = evaluate_dataset(
-        dataset_path=dataset_path,
-        categorizer=services.categorizer,
-        tagger=services.tagger,
-    )
+    report = {
+        "categories": evaluate_dataset(
+            dataset_path=category_dataset_path,
+            categorizer=services.categorizer,
+            tagger=services.tagger,
+        )
+    }
+    if tag_dataset_path.exists():
+        report["tags"] = evaluate_tag_dataset(
+            dataset_path=tag_dataset_path,
+            tagger=services.tagger,
+        )
     print(format_report(report))
 
 

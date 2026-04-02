@@ -40,6 +40,7 @@ class FakeTagger:
         chunks: list[str],
         max_tags: int = 5,
         language_profile=None,
+        title_text: str = "",
     ) -> list[TagCandidate]:
         return [
             TagCandidate(

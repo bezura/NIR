@@ -6,6 +6,12 @@ from typing import Protocol, Sequence
 
 from nir_tagging_service.embeddings import SentenceTransformerProvider
 from nir_tagging_service.language import LanguageProfile, detect_language_profile, edge_stopwords_for_profile
+from nir_tagging_service.tag_postprocessing import (
+    RussianLemmatizer,
+    build_ranked_candidates,
+    is_redundant_candidate,
+    normalize_keyword,
+)
 
 
 class KeywordExtractionBackend(Protocol):
@@ -48,60 +54,57 @@ class TagCandidate:
 class KeywordTagger:
     def __init__(self, extractor: KeywordExtractionBackend) -> None:
         self.extractor = extractor
+        self.lemmatizer = RussianLemmatizer()
 
     def extract_tags(
         self,
         chunks: Sequence[str],
         max_tags: int = 5,
         language_profile: LanguageProfile | None = None,
+        title_text: str = "",
     ) -> list[TagCandidate]:
         joined_text = "\n\n".join(chunk for chunk in chunks if chunk.strip())
         resolved_language_profile = language_profile or detect_language_profile(joined_text)
         active_edge_stopwords = edge_stopwords_for_profile(resolved_language_profile)
         raw_keywords = self.extractor.extract(joined_text, top_n=max_tags * 3)
+        ranked_candidates = build_ranked_candidates(
+            raw_keywords=raw_keywords,
+            language_profile=resolved_language_profile,
+            title_text=title_text,
+            lemmatizer=self.lemmatizer,
+        )
+        accepted: list[object] = []
+        results: list[TagCandidate] = []
 
-        deduplicated: dict[str, TagCandidate] = {}
-
-        for keyword, score in raw_keywords:
-            normalized = self.normalize_keyword(keyword)
-            if not normalized or len(normalized) < 3 or normalized.isdigit():
+        for candidate in ranked_candidates:
+            if len(candidate.normalized_label) < 3 or candidate.normalized_label.isdigit():
                 continue
 
-            existing = deduplicated.get(normalized)
-            candidate = TagCandidate(
-                label=normalized,
-                normalized_label=normalized,
-                score=float(score),
-            )
-
-            if existing is None or candidate.score > existing.score:
-                deduplicated[normalized] = candidate
-
-        ranked = sorted(deduplicated.values(), key=lambda item: item.score, reverse=True)
-        accepted: list[TagCandidate] = []
-
-        for candidate in ranked:
             if self.is_edge_stopword_phrase(candidate.normalized_label, active_edge_stopwords):
                 continue
 
             if self.is_code_like_phrase(candidate.normalized_label):
                 continue
 
-            if self.is_redundant_substring(candidate.normalized_label, accepted):
+            if is_redundant_candidate(candidate, accepted):
                 continue
 
             accepted.append(candidate)
-            if len(accepted) >= max_tags:
+            results.append(
+                TagCandidate(
+                    label=candidate.label,
+                    normalized_label=candidate.normalized_label,
+                    score=float(candidate.score),
+                )
+            )
+            if len(results) >= max_tags:
                 break
 
-        return accepted
+        return results
 
     @staticmethod
     def normalize_keyword(keyword: str) -> str:
-        normalized = keyword.strip().lower()
-        normalized = re.sub(r"\s+", " ", normalized)
-        normalized = normalized.strip(".,;:!?()[]{}\"'")
-        return normalized
+        return normalize_keyword(keyword)
 
     @classmethod
     def is_edge_stopword_phrase(
@@ -114,15 +117,6 @@ class KeywordTagger:
             return True
 
         return tokens[0] in edge_stopwords or tokens[-1] in edge_stopwords
-
-    @staticmethod
-    def is_redundant_substring(normalized_keyword: str, accepted: list[TagCandidate]) -> bool:
-        return any(
-            normalized_keyword in candidate.normalized_label
-            or candidate.normalized_label in normalized_keyword
-            for candidate in accepted
-            if candidate.normalized_label != normalized_keyword
-        )
 
     @staticmethod
     def is_code_like_phrase(normalized_keyword: str) -> bool:

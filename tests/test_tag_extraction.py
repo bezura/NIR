@@ -127,3 +127,87 @@ def test_keyword_tagger_keeps_english_technical_terms_for_mixed_russian_text() -
         "retrieval pipeline",
         "векторный поиск",
     ]
+
+
+def test_keyword_tagger_merges_russian_inflections_by_lemma() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("векторные базы данных", 0.95),
+            ("векторных баз данных", 0.91),
+            ("поисковые системы", 0.82),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        ["Векторные базы данных улучшают качество поиска по документам."],
+        max_tags=5,
+        language_profile=SimpleNamespace(
+            dominant_language="ru",
+            secondary_language=None,
+            mixed_language=False,
+            distribution={"ru": 0.95, "en": 0.05, "other": 0.0},
+        ),
+    )
+
+    assert [tag.normalized_label for tag in tags] == [
+        "векторные базы данных",
+        "поисковые системы",
+    ]
+
+
+def test_keyword_tagger_boosts_title_phrases_over_generic_body_terms() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("semantic search", 0.74),
+            ("retrieval pipeline", 0.72),
+            ("поисковые системы", 0.83),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        [
+            "Semantic Search в RAG-системах\n\nВ статье рассматриваются поисковые системы и retrieval pipeline."
+        ],
+        max_tags=3,
+        language_profile=SimpleNamespace(
+            dominant_language="ru",
+            secondary_language="en",
+            mixed_language=True,
+            distribution={"ru": 0.58, "en": 0.38, "other": 0.04},
+        ),
+        title_text="Semantic Search в RAG-системах",
+    )
+
+    assert [tag.normalized_label for tag in tags][:2] == [
+        "semantic search",
+        "retrieval pipeline",
+    ]
+
+
+def test_keyword_tagger_merges_mixed_phrases_with_punctuation_variants() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("rag-системы", 0.89),
+            ("rag системы", 0.87),
+            ("semantic search", 0.84),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        ["RAG-системы применяются в semantic search."],
+        max_tags=5,
+        language_profile=SimpleNamespace(
+            dominant_language="ru",
+            secondary_language="en",
+            mixed_language=True,
+            distribution={"ru": 0.51, "en": 0.45, "other": 0.04},
+        ),
+    )
+
+    assert [tag.normalized_label for tag in tags] == [
+        "rag системы",
+        "semantic search",
+    ]

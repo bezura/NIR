@@ -188,6 +188,7 @@ async def process_job(
                     prepared.tag_extraction_chunks,
                     max_tags=max_tags,
                     language_profile=prepared.language_profile,
+                    title_text=prepared.title_text,
                 )
 
             tags_payload = [asdict(tag) for tag in tags]
