@@ -24,11 +24,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "netron>=9.0.0",
-    "onnx>=1.21.0",
-    "onnxscript>=0.6.2",
     "pytest>=9.0.2",
-    "torchinfo>=1.8.0",
 ]
 
 [tool.pytest.ini_options]
