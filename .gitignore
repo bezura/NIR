@@ -6,3 +6,5 @@ tmp/
 .pytest_cache/
 __pycache__/
 tagging.db
+.playwright-cli/
+output/playwright/
