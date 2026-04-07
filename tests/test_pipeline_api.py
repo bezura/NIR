@@ -1,4 +1,5 @@
 import asyncio
+import warnings
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -459,6 +460,40 @@ def test_result_response_exposes_standardized_diagnostics(tmp_path) -> None:
         assert signals["pipeline"]["content_type_hint_applied"] is False
         assert "timings_ms" in signals
         assert "category_scores_top_k" in signals
+
+
+def test_deprecated_content_type_hint_remains_runtime_safe(tmp_path) -> None:
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'tagging-deprecated-hint.db'}")
+    app = create_app(
+        settings=settings,
+        pipeline_services=PipelineServices(
+            categorizer=FakeCategorizer(),
+            tagger=FakeTagger(),
+        ),
+    )
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always", DeprecationWarning)
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/tagging/jobs",
+                json={
+                    "text": "Transformer embeddings improve search quality and explainability.",
+                    "source": "article",
+                    "metadata": {"title": "Embeddings"},
+                    "options": {"max_tags": 5, "content_type_hint": "article_like"},
+                },
+            )
+
+            result_response = client.get(
+                f"/api/v1/tagging/jobs/{response.json()['job_id']}/result"
+            )
+
+        assert response.status_code == 202
+        assert result_response.status_code == 200
+        assert result_response.json()["signals"]["pipeline"]["content_type_hint"] == "article_like"
+        assert not [warning for warning in captured if issubclass(warning.category, DeprecationWarning)]
 
 
 def test_result_response_exposes_language_signals_for_mixed_text(tmp_path) -> None:

@@ -324,6 +324,11 @@ async def process_job(
 
             tags_payload = [asdict(tag) for tag in tags]
             explanation = None
+            # `content_type_hint` stays accepted for request compatibility, but
+            # direct attribute access on deprecated Pydantic fields emits a
+            # runtime warning. Read the stored value without touching the
+            # descriptor so strict warning policies keep the job green.
+            content_type_hint = options.__dict__.get("content_type_hint")
             signals = {
                 "chunked": prepared.chunked,
                 "content_type": prepared.content_type,
@@ -336,7 +341,7 @@ async def process_job(
                     "distribution": prepared.language_profile.distribution,
                 },
                 "pipeline": {
-                    "content_type_hint": options.content_type_hint,
+                    "content_type_hint": content_type_hint,
                     "content_type_hint_applied": False,
                     "tagging_mode": options.tagging_mode,
                     "output_language": resolved_output_language,
