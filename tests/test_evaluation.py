@@ -128,6 +128,32 @@ class FakeLongDocumentCategorizer:
         )
 
 
+class FakeRuleAwareCategorizer:
+    def categorize(self, chunks: list[str], score_boosts: dict[str, float] | None = None) -> CategorizationResult:
+        boosted = bool(score_boosts and score_boosts.get("research_benchmark_evaluation"))
+        leaf = CategoryDefinition(
+            code="research_benchmark_evaluation" if boosted else "technology_software",
+            label="Research" if boosted else "Technology",
+            description="benchmark" if boosted else "technology",
+        )
+        domain = CategoryDefinition(
+            code="research" if boosted else "technology",
+            label="Research" if boosted else "Technology",
+            description="domain",
+        )
+        return CategorizationResult(
+            category=leaf,
+            score=0.9,
+            similarities={
+                leaf.code: 0.9,
+                ("technology_software" if boosted else "research_benchmark_evaluation"): 0.52,
+            },
+            category_path=[domain, leaf],
+            category_depth=2,
+            category_is_leaf=True,
+        )
+
+
 def test_evaluate_dataset_returns_accuracy_summary(tmp_path) -> None:
     from nir_tagging_service.evaluation import evaluate_dataset
 
@@ -385,6 +411,35 @@ def test_evaluate_long_document_dataset_reports_accuracy_and_low_confidence(tmp_
     assert report["top_2_accuracy"] == 1.0
     assert report["low_confidence_rate"] == 0.5
     assert report["low_confidence_accuracy"] == 1.0
+
+
+def test_evaluate_dataset_applies_rule_hints_before_categorization(tmp_path) -> None:
+    from nir_tagging_service.evaluation import evaluate_dataset
+
+    dataset_path = tmp_path / "rule-aware-dataset.json"
+    dataset_path.write_text(
+        json.dumps(
+            [
+                {
+                    "kind": "short_note",
+                    "expected_category": "research_benchmark_evaluation",
+                    "metadata": {
+                        "keywords": ["benchmark"],
+                    },
+                    "text": "A short benchmark note about multilingual evaluation.",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluate_dataset(
+        dataset_path=dataset_path,
+        categorizer=FakeRuleAwareCategorizer(),
+        tagger=FakeTagger(),
+    )
+
+    assert report["category_accuracy"] == 1.0
 
 
 def test_long_document_example_dataset_is_self_contained() -> None:

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 """Benchmark helpers for categorization and tag extraction quality checks."""
 
+import inspect
 import json
 from pathlib import Path
 from typing import Any
 
 from nir_tagging_service.category_catalog import DEFAULT_CATEGORIES, iter_categories
+from nir_tagging_service.language import resolve_output_language
 from nir_tagging_service.preprocessing import prepare_text
+from nir_tagging_service.rules import apply_rule_hints
 from nir_tagging_service.tag_extraction import KeywordTagger
 
 
@@ -98,7 +101,23 @@ def _evaluate_category_rows(
         source = "document" if sample["kind"] == "long_document" else "article"
         metadata = _load_sample_metadata(sample)
         prepared = prepare_text(text, source, metadata=metadata)
-        category_result = categorizer.categorize(prepared.categorization_chunks)
+        output_language = resolve_output_language("auto", prepared.language_profile) or "auto"
+        rule_hints = apply_rule_hints(
+            source=source,
+            metadata=metadata,
+            title_text=prepared.title_text,
+            metadata_terms=prepared.metadata_terms,
+            language_profile=prepared.language_profile,
+            output_language=output_language,
+        )
+        categorize_signature = inspect.signature(categorizer.categorize)
+        if len(categorize_signature.parameters) >= 2:
+            category_result = categorizer.categorize(
+                prepared.categorization_chunks,
+                rule_hints.category_boosts,
+            )
+        else:
+            category_result = categorizer.categorize(prepared.categorization_chunks)
         tagger.extract_tags(prepared.tag_extraction_chunks, max_tags=5)
 
         rows.append(

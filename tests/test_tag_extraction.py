@@ -16,6 +16,22 @@ class FakeKeywordExtractor:
         return self.keywords
 
 
+class ChunkAwareFakeKeywordExtractor:
+    def __init__(self) -> None:
+        self.seen_texts: list[str] = []
+
+    def extract(self, text: str, top_n: int) -> list[tuple[str, float]]:
+        self.seen_texts.append(text)
+        lowered = text.lower()
+        if "vector database" in lowered:
+            return [("vector database", 0.94)]
+        if "readiness probe" in lowered:
+            return [("readiness probe", 0.9)]
+        if "structured logging" in lowered:
+            return [("structured logging", 0.88)]
+        return [("platform", 0.95)]
+
+
 def test_keyword_tagger_normalizes_deduplicates_and_limits_results() -> None:
     extractor = FakeKeywordExtractor(
         [
@@ -60,6 +76,27 @@ def test_keyword_tagger_uses_all_chunks_for_extraction_context() -> None:
     )
 
 
+def test_keyword_tagger_extracts_long_document_tags_chunk_by_chunk() -> None:
+    extractor = ChunkAwareFakeKeywordExtractor()
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        [
+            "The platform uses a vector database for semantic retrieval and indexing.",
+            "Operations rely on readiness probe checks during deployment rollouts.",
+            "Structured logging captures job_id, document_id, and pipeline timings.",
+        ],
+        max_tags=5,
+    )
+
+    assert len(extractor.seen_texts) == 3
+    assert [tag.normalized_label for tag in tags] == [
+        "vector database",
+        "readiness probe",
+        "structured logging",
+    ]
+
+
 def test_keyword_tagger_filters_substrings_and_stopword_edges() -> None:
     extractor = FakeKeywordExtractor(
         [
@@ -97,6 +134,28 @@ def test_keyword_tagger_filters_code_like_noise_tokens() -> None:
     assert [tag.normalized_label for tag in tags] == [
         "framework selection",
         "api contracts",
+    ]
+
+
+def test_keyword_tagger_filters_mixed_phrases_with_non_nounish_russian_edges() -> None:
+    extractor = FakeKeywordExtractor(
+        [
+            ("используются retrieval", 0.94),
+            ("retrieval pipeline", 0.92),
+            ("разбирают tokenization", 0.9),
+            ("классификация текста", 0.88),
+        ]
+    )
+    tagger = KeywordTagger(extractor=extractor)
+
+    tags = tagger.extract_tags(
+        ["В заметке используются retrieval pipeline, а на семинаре разбирают tokenization."],
+        max_tags=5,
+    )
+
+    assert [tag.normalized_label for tag in tags] == [
+        "retrieval pipeline",
+        "классификация текста",
     ]
 
 

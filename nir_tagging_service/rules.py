@@ -40,6 +40,38 @@ def apply_rule_hints(
     lowered_title = title_text.casefold()
     lowered_terms = {term.casefold() for term in metadata_terms}
 
+    if _contains_any_phrase(lowered_title, lowered_terms, "architecture", "архитектура"):
+        _accumulate_boost(category_boosts, "technology", 0.08)
+        _accumulate_boost(category_boosts, "technology_software_architecture", 0.24)
+        matched_rules.append({"rule": "title:architecture"})
+
+    if _contains_any_phrase(
+        lowered_title,
+        lowered_terms,
+        "literature review",
+        "обзор литературы",
+        "literature survey",
+    ):
+        _accumulate_boost(category_boosts, "research", 0.08)
+        _accumulate_boost(category_boosts, "science_research", 0.12)
+        _accumulate_boost(category_boosts, "research_literature_review", 0.24)
+        matched_rules.append({"rule": "metadata:literature_review"})
+
+    if _contains_any_phrase(
+        lowered_title,
+        lowered_terms,
+        "practicum",
+        "практикум",
+        "lab",
+        "лаборатор",
+        "workshop",
+        "воркшоп",
+    ):
+        _accumulate_boost(category_boosts, "education", 0.08)
+        _accumulate_boost(category_boosts, "education_learning", 0.12)
+        _accumulate_boost(category_boosts, "education_practicum_lab", 0.24)
+        matched_rules.append({"rule": "title:practicum"})
+
     if domain == "arxiv.org":
         _accumulate_boost(category_boosts, "research", 0.18)
         _accumulate_boost(category_boosts, "science_research", 0.22)
@@ -156,3 +188,14 @@ def _extract_domain(url_value: str) -> str | None:
     if domain.startswith("www."):
         domain = domain[4:]
     return domain or None
+
+
+def _contains_any_phrase(title: str, terms: set[str], *phrases: str) -> bool:
+    """Return True when any marker appears in the title or metadata terms."""
+
+    for phrase in phrases:
+        if phrase in title:
+            return True
+        if phrase in terms:
+            return True
+    return False

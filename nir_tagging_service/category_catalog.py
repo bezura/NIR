@@ -7,6 +7,9 @@ from typing import Iterable
 
 
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+DESCRIPTION_EMBEDDING_WEIGHT = 0.8
+PROTOTYPE_EMBEDDING_WEIGHT = 1.6
+KEYWORDS_EMBEDDING_WEIGHT = 0.55
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +50,29 @@ class CategoryDefinition:
             seen.add(dedupe_key)
 
         return tuple(texts)
+
+    def weighted_embedding_texts(self) -> tuple[tuple[str, float], ...]:
+        """Return deduplicated embedding texts together with field-aware weights."""
+
+        weighted_texts: dict[str, tuple[str, float]] = {}
+        candidates = (
+            (self.description, DESCRIPTION_EMBEDDING_WEIGHT),
+            *((prototype, PROTOTYPE_EMBEDDING_WEIGHT) for prototype in self.prototypes),
+            (", ".join(self.keywords) if self.keywords else "", KEYWORDS_EMBEDDING_WEIGHT),
+        )
+
+        for candidate, weight in candidates:
+            normalized = candidate.strip()
+            if not normalized:
+                continue
+            dedupe_key = normalized.casefold()
+            current = weighted_texts.get(dedupe_key)
+            if current is None:
+                weighted_texts[dedupe_key] = (normalized, float(weight))
+                continue
+            weighted_texts[dedupe_key] = (current[0], current[1] + float(weight))
+
+        return tuple(weighted_texts.values())
 
     def walk(self) -> Iterable["CategoryDefinition"]:
         """Yield the current node and all descendants depth-first."""

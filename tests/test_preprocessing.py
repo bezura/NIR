@@ -1,4 +1,8 @@
-from nir_tagging_service.preprocessing import LONG_DOCUMENT_THRESHOLD, prepare_text
+from nir_tagging_service.preprocessing import (
+    LONG_DOCUMENT_THRESHOLD,
+    prepare_text,
+    select_long_document_categorization_chunks,
+)
 
 
 def test_prepare_text_cleans_short_note_without_chunking() -> None:
@@ -76,10 +80,50 @@ def test_prepare_text_adds_dedicated_context_chunk_for_long_document_categorizat
     )
 
     assert result.chunked is True
+    assert result.content_type == "long_document"
     assert result.categorization_chunks[0] == (
         "Architecture of a Multilingual Retrieval Platform\n"
         "semantic search, vector database, retrieval pipeline"
     )
-    assert result.categorization_chunks[1].startswith("Architecture of a Multilingual Retrieval Platform")
+    assert not result.categorization_chunks[1].startswith("Architecture of a Multilingual Retrieval Platform")
     assert result.tag_extraction_chunks[0].startswith("Architecture of a Multilingual Retrieval Platform")
     assert result.categorization_chunks != result.tag_extraction_chunks
+
+
+def test_prepare_text_treats_multi_chunk_documents_as_long_documents_even_below_length_threshold() -> None:
+    text = (
+        ("Architecture decisions for the tagging platform and retrieval system. " * 18)
+        + "\n\n"
+        + ("Implementation details for workers, queues, and observability. " * 18)
+    ).strip()
+
+    assert len(text) < LONG_DOCUMENT_THRESHOLD
+
+    result = prepare_text(
+        text,
+        source="document",
+        metadata={"title": "Platform Architecture Overview"},
+    )
+
+    assert result.chunked is True
+    assert result.content_type == "long_document"
+    assert result.categorization_chunks[0] == "Platform Architecture Overview"
+
+
+def test_long_document_selector_keeps_informative_middle_chunk() -> None:
+    chunks = [
+        "Introduction and background for the system design.",
+        "General project notes without category evidence.",
+        (
+            "Semantic search retrieval pipeline vector database reranking embeddings "
+            "indexing chunking architecture."
+        ),
+        "Short appendix with broad remarks.",
+        "Conclusion and rollout summary.",
+    ]
+
+    selected = select_long_document_categorization_chunks(chunks)
+
+    assert chunks[0] in selected
+    assert chunks[-1] in selected
+    assert chunks[2] in selected

@@ -10,6 +10,7 @@ from nir_tagging_service.embeddings import SentenceTransformerProvider
 from nir_tagging_service.language import LanguageProfile, detect_language_profile, edge_stopwords_for_profile
 from nir_tagging_service.schemas import TagCatalogEntry
 from nir_tagging_service.tag_postprocessing import (
+    CYRILLIC_RE,
     RussianLemmatizer,
     build_ranked_candidates,
     is_redundant_candidate,
@@ -292,10 +293,19 @@ class KeywordTagger:
     ) -> list[TagCandidate]:
         """Extract, clean and rank tag candidates for a document."""
 
-        joined_text = "\n\n".join(chunk for chunk in chunks if chunk.strip())
+        active_chunks = [chunk for chunk in chunks if chunk.strip()]
+        joined_text = "\n\n".join(active_chunks)
         resolved_language_profile = language_profile or detect_language_profile(joined_text)
         active_edge_stopwords = edge_stopwords_for_profile(resolved_language_profile)
-        raw_keywords = self.extractor.extract(joined_text, top_n=max_tags * 3)
+        use_chunk_wise_extraction = len(active_chunks) >= 3 or len(joined_text) > 1200
+
+        if use_chunk_wise_extraction:
+            raw_keywords: list[tuple[str, float]] = []
+            per_chunk_top_n = max(max_tags * 2, 6)
+            for chunk in active_chunks:
+                raw_keywords.extend(self.extractor.extract(chunk, top_n=per_chunk_top_n))
+        else:
+            raw_keywords = self.extractor.extract(joined_text, top_n=max_tags * 3)
         ranked_candidates = build_ranked_candidates(
             raw_keywords=raw_keywords,
             language_profile=resolved_language_profile,
@@ -315,6 +325,9 @@ class KeywordTagger:
                 continue
 
             if self.is_code_like_phrase(candidate.normalized_label):
+                continue
+
+            if self.has_non_nounish_cyrillic_edge(candidate.normalized_label):
                 continue
 
             if is_redundant_candidate(candidate, accepted):
@@ -355,3 +368,19 @@ class KeywordTagger:
     @staticmethod
     def is_code_like_phrase(normalized_keyword: str) -> bool:
         return any(marker in normalized_keyword for marker in {"_", "/", "::"})
+
+    def has_non_nounish_cyrillic_edge(self, normalized_keyword: str) -> bool:
+        """Reject phrases that start or end with a Russian token outside noun-like POS."""
+
+        tokens = normalized_keyword.split()
+        if len(tokens) < 2:
+            return False
+
+        cyrillic_tokens = [token for token in tokens if CYRILLIC_RE.search(token)]
+        if not cyrillic_tokens:
+            return False
+
+        return (
+            not self.lemmatizer.is_nounish_token(cyrillic_tokens[0])
+            or not self.lemmatizer.is_nounish_token(cyrillic_tokens[-1])
+        )

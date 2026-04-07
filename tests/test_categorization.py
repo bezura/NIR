@@ -528,3 +528,82 @@ def test_categorizer_applies_external_score_boosts_before_selecting_category() -
     assert unboosted.category.code == "technology_software"
     assert boosted.category.code == "science_research"
     assert boosted.similarities["science_research"] > boosted.similarities["technology_software"]
+
+
+def test_categorizer_weights_prototypes_more_than_generic_descriptions() -> None:
+    categories = [
+        CategoryDefinition(
+            code="technology_backend",
+            label="Backend",
+            description="generic technology",
+            prototypes=("backend evidence",),
+        ),
+        CategoryDefinition(
+            code="technology_retrieval",
+            label="Retrieval",
+            description="retrieval overview",
+            prototypes=("retrieval details",),
+        ),
+    ]
+    classifier = EmbeddingCategoryClassifier(
+        embedder=FakeEmbedder(
+            {
+                "generic technology": [0.0, 1.0],
+                "backend evidence": [1.0, 0.0],
+                "retrieval overview": [0.78, 0.625],
+                "retrieval details": [0.76, 0.65],
+                "doc": [1.0, 0.0],
+            }
+        ),
+        categories=categories,
+    )
+
+    result = classifier.categorize(["doc"])
+
+    assert result.category.code == "technology_backend"
+
+
+def test_categorizer_uses_stricter_gap_thresholds_for_deeper_levels() -> None:
+    categories = [
+        CategoryDefinition(
+            code="technology",
+            label="Technology",
+            description="technology root",
+            children=(
+                CategoryDefinition(
+                    code="technology_backend",
+                    label="Backend",
+                    description="backend branch",
+                ),
+                CategoryDefinition(
+                    code="technology_retrieval",
+                    label="Retrieval",
+                    description="retrieval branch",
+                ),
+            ),
+        ),
+        CategoryDefinition(
+            code="research",
+            label="Research",
+            description="research root",
+        ),
+    ]
+    classifier = EmbeddingCategoryClassifier(
+        embedder=FakeEmbedder(
+            {
+                "technology root": [1.0, 0.0],
+                "backend branch": [0.74, 0.6726],
+                "retrieval branch": [0.655, 0.7556],
+                "research root": [0.0, 1.0],
+                "doc": [1.0, 0.0],
+            }
+        ),
+        categories=categories,
+    )
+
+    result = classifier.categorize(["doc"])
+
+    assert result.category.code == "technology"
+    assert result.category_is_leaf is False
+    assert result.low_confidence is True
+    assert "stopped_before_leaf" in result.low_confidence_reasons

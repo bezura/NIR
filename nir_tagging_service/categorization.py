@@ -25,6 +25,8 @@ LOW_CONFIDENCE_GAP_THRESHOLD = 0.08
 LONG_DOCUMENT_SCORE_THRESHOLD = 0.58
 LONG_DOCUMENT_GAP_THRESHOLD = 0.04
 INFORMATIVE_CHUNK_WEIGHT_THRESHOLD = 1.3
+DEPTH_SCORE_THRESHOLD_STEP = 0.03
+DEPTH_GAP_THRESHOLD_STEP = 0.02
 
 TOKEN_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9_-]{3,}")
 SECTION_MARKERS = (
@@ -195,9 +197,23 @@ def _normalize_embedding(vector: np.ndarray) -> np.ndarray:
 def confidence_thresholds_for_chunk_count(num_chunks: int) -> tuple[float, float]:
     """Choose confidence thresholds based on document length."""
 
+    return confidence_thresholds_for_level(num_chunks, depth=1)
+
+
+def confidence_thresholds_for_level(num_chunks: int, depth: int) -> tuple[float, float]:
+    """Choose confidence thresholds based on document length and taxonomy depth."""
+
     if num_chunks >= 4:
-        return LONG_DOCUMENT_SCORE_THRESHOLD, LONG_DOCUMENT_GAP_THRESHOLD
-    return LOW_CONFIDENCE_SCORE_THRESHOLD, LOW_CONFIDENCE_GAP_THRESHOLD
+        score_threshold = LONG_DOCUMENT_SCORE_THRESHOLD
+        gap_threshold = LONG_DOCUMENT_GAP_THRESHOLD
+    else:
+        score_threshold = LOW_CONFIDENCE_SCORE_THRESHOLD
+        gap_threshold = LOW_CONFIDENCE_GAP_THRESHOLD
+
+    extra_depth = max(depth - 1, 0)
+    score_threshold += extra_depth * DEPTH_SCORE_THRESHOLD_STEP
+    gap_threshold += extra_depth * DEPTH_GAP_THRESHOLD_STEP
+    return score_threshold, gap_threshold
 
 
 def apply_score_boosts(
@@ -239,9 +255,11 @@ class EmbeddingCategoryClassifier:
         if cached is not None:
             return cached
 
-        embedding_inputs = list(category.embedding_texts())
+        weighted_inputs = list(category.weighted_embedding_texts())
+        embedding_inputs = [text for text, _ in weighted_inputs]
+        embedding_weights = np.asarray([weight for _, weight in weighted_inputs], dtype=float)
         embeddings = self.embedder.encode(embedding_inputs)
-        vector = _normalize_embedding(np.mean(embeddings, axis=0))
+        vector = _normalize_embedding(np.average(embeddings, axis=0, weights=embedding_weights))
         self._node_embeddings[category.code] = vector
         return vector
 
@@ -295,7 +313,6 @@ class EmbeddingCategoryClassifier:
 
         chunk_weights: list[float] = []
         informative_chunk_indices: list[int] = []
-        score_threshold, gap_threshold = confidence_thresholds_for_chunk_count(len(chunk_texts))
         for index, chunk in enumerate(chunk_texts):
             weight, informative = compute_chunk_weight(chunk, index=index, total_chunks=len(chunk_texts))
             chunk_weights.append(weight)
@@ -330,6 +347,10 @@ class EmbeddingCategoryClassifier:
             top_2_score = ranked[1][1] if len(ranked) > 1 else 0.0
             confidence_gap = max(0.0, best_score - top_2_score)
             best_node = next(category for category in current_candidates if category.code == best_code)
+            score_threshold, gap_threshold = confidence_thresholds_for_level(
+                len(chunk_texts),
+                depth=len(accepted_path) + 1,
+            )
             low_score = best_score < score_threshold
             small_gap = confidence_gap < gap_threshold
             acceptable = not (low_score or small_gap)

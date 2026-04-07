@@ -11,6 +11,27 @@ from nir_tagging_service.language import LanguageProfile, detect_language_profil
 
 LONG_DOCUMENT_THRESHOLD = 3000
 MAX_CHUNK_LENGTH = 1200
+INFORMATIVE_CHUNK_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9_-]{3,}")
+SECTION_MARKERS = (
+    "abstract",
+    "introduction",
+    "overview",
+    "background",
+    "implementation",
+    "architecture",
+    "results",
+    "discussion",
+    "summary",
+    "conclusion",
+    "заключение",
+    "выводы",
+    "итоги",
+    "введение",
+    "обзор",
+    "архитектура",
+    "результаты",
+    "обсуждение",
+)
 
 
 @dataclass(slots=True)
@@ -111,19 +132,54 @@ def attach_context_to_chunks(chunks: list[str], context_prefix: str) -> list[str
     return contextualized
 
 
+def _term_density(text: str) -> float:
+    """Estimate how terminology-dense a chunk is for evidence selection."""
+
+    all_tokens = [token.casefold() for token in INFORMATIVE_CHUNK_TOKEN_RE.findall(text)]
+    if not all_tokens:
+        return 0.0
+
+    dense_tokens = [
+        token for token in all_tokens
+        if len(token) >= 7 or "-" in token or "_" in token
+    ]
+    if not dense_tokens:
+        return 0.0
+
+    return len(set(dense_tokens)) / len(all_tokens)
+
+
+def _chunk_priority(chunk: str) -> float:
+    """Score a chunk for long-document categorization evidence selection."""
+
+    lowered = chunk.casefold()
+    score = _term_density(chunk)
+
+    if any(marker in lowered for marker in SECTION_MARKERS):
+        score += 0.35
+
+    return round(score, 6)
+
+
 def select_long_document_categorization_chunks(chunks: list[str]) -> list[str]:
     """Select a compact long-document view for categorization."""
 
-    if len(chunks) <= 3:
+    if len(chunks) <= 4:
         return list(chunks)
 
-    # Favor opening chunks plus the ending chunk because long-document decisions
-    # are usually driven by the introduction, the early problem statement and the conclusion.
-    selected = [chunks[0], chunks[1], chunks[-1]]
+    selected_indices = {0, len(chunks) - 1}
+    middle_indices = list(range(1, len(chunks) - 1))
+    ranked_middle_indices = sorted(
+        middle_indices,
+        key=lambda index: (_chunk_priority(chunks[index]), -index),
+        reverse=True,
+    )
+    selected_indices.update(ranked_middle_indices[:2])
+
     deduped: list[str] = []
     seen: set[str] = set()
-
-    for chunk in selected:
+    for index in sorted(selected_indices):
+        chunk = chunks[index]
         key = chunk.casefold()
         if key in seen:
             continue
@@ -136,19 +192,20 @@ def select_long_document_categorization_chunks(chunks: list[str]) -> list[str]:
 def build_categorization_chunks(chunks: list[str], context_prefix: str, content_type: str) -> list[str]:
     """Build the chunk sequence that is scored during categorization."""
 
-    base_chunks = list(chunks)
     if content_type == "long_document":
         base_chunks = select_long_document_categorization_chunks(chunks)
-    contextualized = attach_context_to_chunks(base_chunks, context_prefix)
-    if not context_prefix:
-        return contextualized
-    if content_type != "long_document":
-        return contextualized
-    return [context_prefix, *contextualized]
+        if not context_prefix:
+            return base_chunks
+        return [context_prefix, *base_chunks]
+
+    return attach_context_to_chunks(list(chunks), context_prefix)
 
 
-def classify_content_type(source: str, cleaned_text: str) -> str:
+def classify_content_type(source: str, cleaned_text: str, chunk_count: int) -> str:
     """Classify the content into a lightweight processing mode."""
+
+    if source == "document" and chunk_count > 1:
+        return "long_document"
 
     if len(cleaned_text) > LONG_DOCUMENT_THRESHOLD:
         return "long_document"
@@ -201,8 +258,8 @@ def prepare_text(
     context_prefix = build_context_prefix(title_text, metadata_terms)
     language_input = " ".join(part for part in [title_text, *metadata_terms, cleaned_text] if part)
     language_profile = detect_language_profile(language_input)
-    content_type = classify_content_type(source, cleaned_text)
     chunks = split_into_chunks(cleaned_text)
+    content_type = classify_content_type(source, cleaned_text, len(chunks))
     chunked = len(chunks) > 1
     categorization_chunks = build_categorization_chunks(chunks, context_prefix, content_type)
     tag_extraction_chunks = attach_context_to_chunks(chunks, context_prefix)
