@@ -1,0 +1,140 @@
+[
+  {
+    "kind": "short_note",
+    "source_site": "habr",
+    "source_url": "https://habr.com/ru/articles/983254/",
+    "captured_at": "2026-04-07",
+    "metadata": {
+      "title": "FastAPI: 5 практичных архитектурных решений, о которых я пожалел, что не узнал раньше",
+      "keywords": [
+        "fastapi",
+        "backend architecture",
+        "pydantic",
+        "testing"
+      ]
+    },
+    "expected_category": "technology_software_architecture",
+    "expected_tags": [
+      "fastapi",
+      "backend architecture",
+      "pydantic",
+      "testing"
+    ],
+    "text": "Краткий реферат материала с Habr: автор рассматривает не быстрый старт на паре endpoint-ов, а поддержку долгоживущего backend-сервиса на FastAPI. Основное внимание уделяется разделению HTTP-слоя и бизнес-логики, выносу валидации в Pydantic-схемы, сервисному слою, зависимостям, работе с базой данных и организации тестов. Отдельно подчеркивается, что по мере роста проекта хаотичное смешение routes, persistence и validation превращает API в трудно сопровождаемую систему. Материал относится к архитектуре backend-приложений и к практикам проектирования сервиса, а не к обзору пользовательского интерфейса или продуктовых метрик."
+  },
+  {
+    "kind": "short_note",
+    "source_site": "habr",
+    "source_url": "https://habr.com/ru/companies/X5Tech/articles/473516/",
+    "captured_at": "2026-04-07",
+    "metadata": {
+      "title": "Пишем блог на микросервисах – часть 2 «API Gateway»",
+      "keywords": [
+        "api gateway",
+        "microservices",
+        "api composition",
+        "krakend"
+      ]
+    },
+    "expected_category": "technology_software_architecture",
+    "expected_tags": [
+      "api gateway",
+      "microservices",
+      "api composition",
+      "krakend"
+    ],
+    "text": "Краткий реферат материала с Habr: статья посвящена API Gateway как центральной точке входа в микросервисную систему. В тексте разбираются маршрутизация запросов, аутентификация, логирование, преобразование REST и gRPC, trace id, композиция ответов из нескольких сервисов и компромиссы такого слоя. Отдельно описываются gateway-pattern, BFF и практическое использование KrakenD и FastAPI как агрегирующего прокси. Это типичный архитектурный материал о границах сервисов, межсервисном взаимодействии и инфраструктурном дизайне backend-платформы."
+  },
+  {
+    "kind": "short_note",
+    "source_site": "habr",
+    "source_url": "https://habr.com/ru/articles/918048/",
+    "captured_at": "2026-04-07",
+    "metadata": {
+      "title": "Создаем свой RAG: от загрузки данных до генерации ответов с LangGraph. Часть 2",
+      "keywords": [
+        "rag",
+        "langgraph",
+        "retrieval",
+        "vector embeddings"
+      ]
+    },
+    "expected_category": "technology_ai_ml_nlp_rag",
+    "expected_tags": [
+      "rag",
+      "langgraph",
+      "retrieval",
+      "vector embeddings"
+    ],
+    "text": "Краткий реферат материала с Habr: в статье разбирается прикладной RAG-pipeline, где данные проходят этапы ingestion, chunking, индексации, построения embeddings, retrieval и генерации ответа по найденному контексту. Автор обсуждает, как связать retrieval-часть с LangGraph, как выбирать источники данных, как ограничивать hallucinations и как оценивать качество ответа при работе с внешним знанием. Материал расположен на стыке NLP и retrieval-систем, но фокус остается на embeddings, RAG и language-aware обработке контекста."
+  },
+  {
+    "kind": "short_note",
+    "source_site": "wikipedia",
+    "source_url": "https://en.wikipedia.org/wiki/FastAPI",
+    "captured_at": "2026-04-07",
+    "metadata": {
+      "title": "FastAPI",
+      "keywords": [
+        "fastapi",
+        "python web framework",
+        "openapi",
+        "pydantic"
+      ]
+    },
+    "expected_category": "technology_software_tooling",
+    "expected_tags": [
+      "fastapi",
+      "python web framework",
+      "openapi",
+      "pydantic"
+    ],
+    "text": "Краткий реферат статьи Wikipedia: FastAPI описывается как Python web framework для разработки HTTP API с активным использованием type hints. В материале подчёркиваются автоматическая генерация OpenAPI и Swagger-документации, интеграция с Pydantic, асинхронная обработка запросов и удобство разработки backend-сервисов. Это не архитектурный разбор конкретного микросервиса, а справочный обзор инструмента и его возможностей для API-разработки."
+  },
+  {
+    "kind": "short_note",
+    "source_site": "wikipedia",
+    "source_url": "https://en.wikipedia.org/wiki/Semantic_search",
+    "captured_at": "2026-04-07",
+    "metadata": {
+      "title": "Semantic search",
+      "keywords": [
+        "semantic search",
+        "information retrieval",
+        "vector embeddings",
+        "lexical search"
+      ]
+    },
+    "expected_category": "technology_software_retrieval",
+    "expected_tags": [
+      "semantic search",
+      "information retrieval",
+      "vector embeddings",
+      "lexical search"
+    ],
+    "text": "Краткий реферат статьи Wikipedia: semantic search противопоставляется purely lexical search и рассматривается как подход к information retrieval, в котором система учитывает смысл запроса, намерение пользователя и контекст терминов. В тексте обсуждаются vector embeddings, similarity search и улучшение релевантности выдачи по сравнению с буквальным совпадением слов. Это материал про retrieval-системы и семантический поиск, а не про product roadmap или ручное планирование."
+  },
+  {
+    "kind": "short_note",
+    "source_site": "wikipedia",
+    "source_url": "https://en.wikipedia.org/wiki/BERT_(language_model)",
+    "captured_at": "2026-04-07",
+    "metadata": {
+      "title": "BERT (language model)",
+      "keywords": [
+        "bert",
+        "transformer",
+        "contextual embeddings",
+        "masked language modeling"
+      ]
+    },
+    "expected_category": "technology_ai_ml_nlp_rag",
+    "expected_tags": [
+      "bert",
+      "transformer",
+      "contextual embeddings",
+      "masked language modeling"
+    ],
+    "text": "Краткий реферат статьи Wikipedia: BERT описывается как transformer-модель для NLP, обучаемая self-supervised на задачах masked token prediction и next sentence prediction. Статья объясняет идею contextual embeddings, роль fine-tuning для downstream NLP tasks и влияние BERT на современные language models. Это справочный материал о модели и NLP-подходе, а не про API gateway, compliance policy или учебный план."
+  }
+]
