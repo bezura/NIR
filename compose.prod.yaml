@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: tagging
+      POSTGRES_USER: tagging
+      POSTGRES_PASSWORD: tagging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tagging -d tagging"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    image: nir-tagging-service:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TAGGING_DATABASE_URL: postgresql+psycopg://tagging:tagging@db:5432/tagging
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
