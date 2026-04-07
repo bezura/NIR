@@ -1,3 +1,5 @@
+"""Centralized settings for local, Docker and CI execution modes."""
+
 from functools import lru_cache
 
 from pydantic import Field
@@ -5,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Typed application settings loaded from environment variables and .env."""
+
     app_name: str = "tagging-subsystem"
     api_prefix: str = "/api/v1/tagging"
     database_url: str = "postgresql+psycopg://tagging:tagging@localhost:5432/tagging"
@@ -30,4 +34,6 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    """Return the process-wide cached settings object."""
+
     return Settings()

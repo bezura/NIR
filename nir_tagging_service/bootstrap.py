@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Factory helpers that wire the default categorization and tagging services."""
+
 from dataclasses import dataclass
 
 from nir_tagging_service.categorization import (
@@ -14,12 +16,16 @@ from nir_tagging_service.tag_extraction import KeyBERTKeywordExtractor, KeywordT
 
 @dataclass(frozen=True, slots=True)
 class PipelineServices:
+    """Container for the service objects used by the processing pipeline."""
+
     categorizer: object
     tagger: object
     enhancer: object | None = None
 
 
 def build_default_pipeline_services(settings: Settings) -> PipelineServices:
+    """Create the default model-backed services from application settings."""
+
     embedding_provider = SharedSentenceTransformerProvider(settings.embedding_model_name)
     embedder = SentenceTransformerEmbedder(embedding_provider)
     enhancer = None

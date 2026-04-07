@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""HTTP handlers for asynchronous tagging jobs."""
+
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import JSONResponse
 
@@ -24,11 +26,15 @@ from nir_tagging_service.schemas import (
 
 
 def error_response(status_code: int, code: str, message: str, details: dict | None = None) -> JSONResponse:
+    """Return a standardized error payload for job endpoints."""
+
     payload = ErrorPayload(code=code, message=message, details=details)
     return JSONResponse(status_code=status_code, content={"error": payload.model_dump()})
 
 
 def create_jobs_router(settings: Settings) -> APIRouter:
+    """Build the router that exposes job creation, status and result endpoints."""
+
     router = APIRouter(prefix=settings.api_prefix)
 
     @router.post("/jobs", response_model=CreateTaggingJobResponse, status_code=202)
@@ -40,6 +46,8 @@ def create_jobs_router(settings: Settings) -> APIRouter:
         process_job: ProcessJobDep,
         logger: LoggerDep,
     ) -> CreateTaggingJobResponse:
+        """Persist a new job and enqueue background processing."""
+
         response, job_id, document_id, status = await create_tagging_job(
             session_factory,
             payload,
@@ -54,6 +62,8 @@ def create_jobs_router(settings: Settings) -> APIRouter:
         job_id: str,
         session_factory: SessionFactoryDep,
     ) -> JobStatusResponse | JSONResponse:
+        """Return the current status and progress snapshot for a job."""
+
         try:
             return await fetch_job_status(session_factory, job_id)
         except JobNotFoundError as exc:
@@ -64,6 +74,8 @@ def create_jobs_router(settings: Settings) -> APIRouter:
         job_id: str,
         session_factory: SessionFactoryDep,
     ) -> JobResultResponse | JSONResponse:
+        """Return the completed result or a normalized job error response."""
+
         try:
             return await fetch_job_result(session_factory, job_id)
         except JobNotFoundError as exc:

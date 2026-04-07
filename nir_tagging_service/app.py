@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""ASGI entrypoint for the tagging subsystem service."""
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,6 +21,8 @@ def create_app(
     settings: Settings | None = None,
     pipeline_services: PipelineServices | None = None,
 ) -> FastAPI:
+    """Build and configure the FastAPI application instance."""
+
     current_settings = settings or get_settings()
     engine = create_engine(current_settings)
     session_factory = create_session_factory(current_settings, engine=engine)
@@ -27,12 +31,16 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        """Create database tables and runtime schema before serving requests."""
+
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(ensure_runtime_schema)
         yield
 
     async def process_job_runner(job_id: str) -> None:
+        """Bridge FastAPI background tasks with the async processing pipeline."""
+
         await process_job(
             job_id=job_id,
             session_factory=session_factory,
@@ -54,6 +62,8 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Expose shared runtime dependencies through app.state so routers and tests
+    # can reuse the same engine, session factory and pipeline services.
     app.state.settings = current_settings
     app.state.engine = engine
     app.state.session_factory = session_factory

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Text normalization and chunk preparation for downstream pipeline stages."""
+
 import re
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -13,6 +15,8 @@ MAX_CHUNK_LENGTH = 1200
 
 @dataclass(slots=True)
 class PreparedText:
+    """Prepared text plus derived metadata reused across pipeline stages."""
+
     cleaned_text: str
     title_text: str
     metadata_terms: list[str]
@@ -28,12 +32,16 @@ class PreparedText:
 
 
 def normalize_text(text: str) -> str:
+    """Normalize whitespace and non-breaking spaces in user-provided text."""
+
     normalized = text.replace("\u00a0", " ")
     normalized = re.sub(r"\s+", " ", normalized)
     return normalized.strip()
 
 
 def extract_title_text(metadata: Mapping[str, Any] | None) -> str:
+    """Extract a human-readable title from supported metadata keys."""
+
     if not metadata:
         return ""
 
@@ -48,6 +56,8 @@ def extract_title_text(metadata: Mapping[str, Any] | None) -> str:
 
 
 def extract_metadata_terms(metadata: Mapping[str, Any] | None) -> list[str]:
+    """Extract and deduplicate short metadata terms used as lightweight context."""
+
     if not metadata:
         return []
 
@@ -76,6 +86,8 @@ def extract_metadata_terms(metadata: Mapping[str, Any] | None) -> list[str]:
 
 
 def build_context_prefix(title_text: str, metadata_terms: list[str]) -> str:
+    """Build the contextual prefix prepended to categorization and tagging chunks."""
+
     parts: list[str] = []
 
     if title_text:
@@ -87,6 +99,8 @@ def build_context_prefix(title_text: str, metadata_terms: list[str]) -> str:
 
 
 def attach_context_to_chunks(chunks: list[str], context_prefix: str) -> list[str]:
+    """Attach context only to the first chunk to avoid repeating metadata everywhere."""
+
     if not chunks:
         return [context_prefix] if context_prefix else []
     if not context_prefix:
@@ -98,9 +112,13 @@ def attach_context_to_chunks(chunks: list[str], context_prefix: str) -> list[str
 
 
 def select_long_document_categorization_chunks(chunks: list[str]) -> list[str]:
+    """Select a compact long-document view for categorization."""
+
     if len(chunks) <= 3:
         return list(chunks)
 
+    # Favor opening chunks plus the ending chunk because long-document decisions
+    # are usually driven by the introduction, the early problem statement and the conclusion.
     selected = [chunks[0], chunks[1], chunks[-1]]
     deduped: list[str] = []
     seen: set[str] = set()
@@ -116,6 +134,8 @@ def select_long_document_categorization_chunks(chunks: list[str]) -> list[str]:
 
 
 def build_categorization_chunks(chunks: list[str], context_prefix: str, content_type: str) -> list[str]:
+    """Build the chunk sequence that is scored during categorization."""
+
     base_chunks = list(chunks)
     if content_type == "long_document":
         base_chunks = select_long_document_categorization_chunks(chunks)
@@ -128,6 +148,8 @@ def build_categorization_chunks(chunks: list[str], context_prefix: str, content_
 
 
 def classify_content_type(source: str, cleaned_text: str) -> str:
+    """Classify the content into a lightweight processing mode."""
+
     if len(cleaned_text) > LONG_DOCUMENT_THRESHOLD:
         return "long_document"
 
@@ -138,6 +160,8 @@ def classify_content_type(source: str, cleaned_text: str) -> str:
 
 
 def split_into_chunks(cleaned_text: str) -> list[str]:
+    """Split long text into whitespace-aligned chunks of bounded size."""
+
     if len(cleaned_text) <= MAX_CHUNK_LENGTH:
         return [cleaned_text]
 
@@ -169,6 +193,8 @@ def prepare_text(
     source: str,
     metadata: Mapping[str, Any] | None = None,
 ) -> PreparedText:
+    """Produce the normalized text representation shared by all pipeline stages."""
+
     cleaned_text = normalize_text(text)
     title_text = extract_title_text(metadata)
     metadata_terms = extract_metadata_terms(metadata)

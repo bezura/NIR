@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Helpers for projecting and mutating per-job progress metadata."""
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -19,6 +21,8 @@ STAGE_LABELS = {
 
 
 def initialize_job_progress(options: TaggingOptions, now: datetime) -> dict[str, Any]:
+    """Create the initial progress payload for a newly queued job."""
+
     queued_stage = {
         "name": "queued",
         "label": label_for_stage("queued"),
@@ -35,12 +39,16 @@ def initialize_job_progress(options: TaggingOptions, now: datetime) -> dict[str,
 
 
 def label_for_stage(stage_name: str | None) -> str | None:
+    """Return a localized label for a pipeline stage name."""
+
     if stage_name is None:
         return None
     return STAGE_LABELS.get(stage_name, stage_name.replace("_", " ").title())
 
 
 def build_stage_plan(options: TaggingOptions) -> list[tuple[str, str]]:
+    """Build the ordered stage list for the selected job options."""
+
     plan = [
         ("queued", label_for_stage("queued") or "queued"),
         ("preprocessing", label_for_stage("preprocessing") or "preprocessing"),
@@ -65,6 +73,8 @@ def build_stage_plan(options: TaggingOptions) -> list[tuple[str, str]]:
 
 
 def start_stage(progress: dict[str, Any], stage_name: str, now: datetime, options: TaggingOptions) -> dict[str, Any]:
+    """Mark a stage as currently running."""
+
     normalized = normalize_progress(progress, options)
     entry = _ensure_entry(normalized, stage_name)
     entry["label"] = label_for_stage(stage_name)
@@ -77,6 +87,8 @@ def start_stage(progress: dict[str, Any], stage_name: str, now: datetime, option
 
 
 def complete_stage(progress: dict[str, Any], stage_name: str, now: datetime, options: TaggingOptions) -> dict[str, Any]:
+    """Mark a stage as completed and refresh aggregate progress."""
+
     normalized = normalize_progress(progress, options)
     entry = _ensure_entry(normalized, stage_name)
     entry["label"] = label_for_stage(stage_name)
@@ -89,6 +101,8 @@ def complete_stage(progress: dict[str, Any], stage_name: str, now: datetime, opt
 
 
 def skip_stage(progress: dict[str, Any], stage_name: str, now: datetime, options: TaggingOptions) -> dict[str, Any]:
+    """Mark an optional stage as skipped."""
+
     normalized = normalize_progress(progress, options)
     entry = _ensure_entry(normalized, stage_name)
     entry["label"] = label_for_stage(stage_name)
@@ -100,6 +114,8 @@ def skip_stage(progress: dict[str, Any], stage_name: str, now: datetime, options
 
 
 def fail_stage(progress: dict[str, Any], stage_name: str, now: datetime, options: TaggingOptions) -> dict[str, Any]:
+    """Mark a stage as failed and freeze progress at the failure point."""
+
     normalized = normalize_progress(progress, options)
     entry = _ensure_entry(normalized, stage_name)
     entry["label"] = label_for_stage(stage_name)
@@ -118,6 +134,8 @@ def project_job_progress(
     *,
     created_at: datetime | None = None,
 ) -> dict[str, Any]:
+    """Project stored progress into API-ready history and pending stages."""
+
     if not progress:
         progress = _fallback_progress(options, overall_status, created_at)
 
@@ -146,6 +164,8 @@ def project_job_progress(
 
 
 def normalize_progress(progress: dict[str, Any] | None, options: TaggingOptions) -> dict[str, Any]:
+    """Normalize persisted progress into a stable internal structure."""
+
     stage_history = []
     if progress:
         stage_history = [dict(entry) for entry in progress.get("stage_history", []) if isinstance(entry, dict)]
@@ -161,6 +181,8 @@ def normalize_progress(progress: dict[str, Any] | None, options: TaggingOptions)
 
 
 def compute_progress_percent(progress: dict[str, Any], options: TaggingOptions) -> int:
+    """Approximate overall completion percentage from stage history."""
+
     planned_stages = [name for name, _ in build_stage_plan(options)]
     if not planned_stages:
         return 0
@@ -186,6 +208,8 @@ def compute_progress_percent(progress: dict[str, Any], options: TaggingOptions) 
 
 
 def _ensure_entry(progress: dict[str, Any], stage_name: str) -> dict[str, Any]:
+    """Return an existing stage entry or append a pending placeholder."""
+
     for entry in progress["stage_history"]:
         if entry.get("name") == stage_name:
             return entry
@@ -202,6 +226,8 @@ def _ensure_entry(progress: dict[str, Any], stage_name: str) -> dict[str, Any]:
 
 
 def _fallback_progress(options: TaggingOptions, overall_status: str, created_at: datetime | None) -> dict[str, Any]:
+    """Synthesize a progress payload for legacy rows without stored progress."""
+
     fallback_now = created_at or datetime.now(timezone.utc)
     if overall_status == "completed":
         progress = initialize_job_progress(options, fallback_now)
@@ -217,4 +243,6 @@ def _fallback_progress(options: TaggingOptions, overall_status: str, created_at:
 
 
 def _serialize_datetime(value: datetime) -> str:
+    """Serialize datetimes in ISO 8601 form for JSON storage."""
+
     return value.isoformat()

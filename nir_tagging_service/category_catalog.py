@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Static multilingual category taxonomy used by the classifier."""
+
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -9,6 +11,8 @@ DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-
 
 @dataclass(frozen=True, slots=True)
 class CategoryDefinition:
+    """Single taxonomy node with prototypes and child categories."""
+
     code: str
     label: str
     description: str
@@ -18,9 +22,13 @@ class CategoryDefinition:
 
     @property
     def is_leaf(self) -> bool:
+        """Return True when the node has no children."""
+
         return not self.children
 
     def embedding_texts(self) -> tuple[str, ...]:
+        """Return deduplicated texts used to embed this category."""
+
         texts: list[str] = []
         seen: set[str] = set()
 
@@ -41,11 +49,15 @@ class CategoryDefinition:
         return tuple(texts)
 
     def walk(self) -> Iterable["CategoryDefinition"]:
+        """Yield the current node and all descendants depth-first."""
+
         yield self
         for child in self.children:
             yield from child.walk()
 
     def leaves(self) -> Iterable["CategoryDefinition"]:
+        """Yield leaf descendants only."""
+
         if self.is_leaf:
             yield self
             return
@@ -54,11 +66,15 @@ class CategoryDefinition:
 
 
 def iter_categories(categories: Iterable[CategoryDefinition]) -> Iterable[CategoryDefinition]:
+    """Iterate all categories depth-first across multiple roots."""
+
     for category in categories:
         yield from category.walk()
 
 
 def iter_leaf_categories(categories: Iterable[CategoryDefinition]) -> Iterable[CategoryDefinition]:
+    """Iterate leaf categories across multiple taxonomy roots."""
+
     for category in categories:
         yield from category.leaves()
 

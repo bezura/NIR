@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Tag candidate extraction, reconciliation and catalog matching."""
+
 import re
 from dataclasses import dataclass
 from typing import Protocol, Sequence
@@ -16,15 +18,21 @@ from nir_tagging_service.tag_postprocessing import (
 
 
 class KeywordExtractionBackend(Protocol):
+    """Protocol implemented by raw keyword extraction backends."""
+
     def extract(self, text: str, top_n: int) -> list[tuple[str, float]]: ...
 
 
 class KeyBERTKeywordExtractor:
+    """Keyword extractor backed by a shared sentence-transformer model."""
+
     def __init__(self, provider: SentenceTransformerProvider) -> None:
         self.provider = provider
         self._extractor = None
 
     def _load_extractor(self):
+        """Load KeyBERT lazily so startup remains lightweight."""
+
         if self._extractor is None:
             from keybert import KeyBERT
 
@@ -33,6 +41,8 @@ class KeyBERTKeywordExtractor:
         return self._extractor
 
     def extract(self, text: str, top_n: int) -> list[tuple[str, float]]:
+        """Extract a generous candidate list for later post-processing."""
+
         extractor = self._load_extractor()
         keywords = extractor.extract_keywords(
             text,
@@ -47,6 +57,8 @@ class KeyBERTKeywordExtractor:
 
 @dataclass(frozen=True, slots=True)
 class TagCandidate:
+    """Normalized tag candidate with provenance and confidence metadata."""
+
     label: str
     normalized_label: str
     score: float
@@ -61,6 +73,8 @@ def merge_tag_candidates(
     *candidate_groups: Sequence[TagCandidate],
     max_tags: int | None = None,
 ) -> list[TagCandidate]:
+    """Merge tag lists while keeping the strongest candidate per identity."""
+
     merged: dict[str, TagCandidate] = {}
 
     for group in candidate_groups:
@@ -86,6 +100,8 @@ def reconcile_tag_candidates(
     output_language: str = "auto",
     category_codes: Sequence[str] | None = None,
 ) -> list[TagCandidate]:
+    """Resolve generated tags against existing or curated catalog entries."""
+
     normalized_category_codes = {code for code in (category_codes or []) if code}
     catalog_entries = _catalog_entries_for_mode(
         tagging_mode=tagging_mode,
@@ -137,6 +153,8 @@ def _catalog_entries_for_mode(
     existing_tags: Sequence[TagCatalogEntry],
     curated_tags: Sequence[TagCatalogEntry],
 ) -> list[TagCatalogEntry]:
+    """Build the effective catalog used by the selected tagging mode."""
+
     if tagging_mode == "existing_only":
         return list(existing_tags)
     if tagging_mode == "curated_only":
@@ -154,6 +172,8 @@ def _find_catalog_match(
     catalog_entries: Sequence[TagCatalogEntry],
     category_codes: set[str],
 ) -> tuple[TagCatalogEntry | None, str | None]:
+    """Find the best catalog entry for a generated candidate."""
+
     best_match: tuple[int, int, TagCatalogEntry, str] | None = None
     candidate_forms = {
         normalize_keyword(candidate.label),
@@ -199,6 +219,8 @@ def _build_catalog_candidate(
     output_language: str,
     category_codes: set[str],
 ) -> TagCandidate:
+    """Project a generated candidate into a normalized catalog-backed tag."""
+
     canonical_name = entry.canonical_name.strip()
     localized_label = _localized_label(entry, output_language)
     category_bonus = 0.03 if category_codes and set(entry.category_codes).intersection(category_codes) else 0.0
@@ -216,6 +238,8 @@ def _build_catalog_candidate(
 
 
 def _localized_label(entry: TagCatalogEntry, output_language: str) -> str:
+    """Select the preferred localized label for a catalog entry."""
+
     if output_language in {"ru", "en"}:
         label = entry.labels.get(output_language)
         if label:
@@ -230,12 +254,16 @@ def _localized_label(entry: TagCatalogEntry, output_language: str) -> str:
 
 
 def _candidate_identity(candidate: TagCandidate) -> str:
+    """Compute the deduplication identity for a tag candidate."""
+
     if candidate.canonical_name:
         return normalize_keyword(candidate.canonical_name)
     return candidate.normalized_label
 
 
 def _candidate_rank(candidate: TagCandidate) -> tuple[int, float]:
+    """Rank candidates by provenance priority and model score."""
+
     source_priority = {
         "manual": 4,
         "rule": 3,
@@ -249,6 +277,8 @@ def _candidate_rank(candidate: TagCandidate) -> tuple[int, float]:
 
 
 class KeywordTagger:
+    """Apply post-processing rules to raw keyword extraction output."""
+
     def __init__(self, extractor: KeywordExtractionBackend) -> None:
         self.extractor = extractor
         self.lemmatizer = RussianLemmatizer()
@@ -260,6 +290,8 @@ class KeywordTagger:
         language_profile: LanguageProfile | None = None,
         title_text: str = "",
     ) -> list[TagCandidate]:
+        """Extract, clean and rank tag candidates for a document."""
+
         joined_text = "\n\n".join(chunk for chunk in chunks if chunk.strip())
         resolved_language_profile = language_profile or detect_language_profile(joined_text)
         active_edge_stopwords = edge_stopwords_for_profile(resolved_language_profile)
@@ -273,6 +305,8 @@ class KeywordTagger:
         accepted: list[object] = []
         results: list[TagCandidate] = []
 
+        # Keep only sufficiently informative phrases and drop candidates that
+        # collapse into the same normalized concept after lemmatization.
         for candidate in ranked_candidates:
             if len(candidate.normalized_label) < 3 or candidate.normalized_label.isdigit():
                 continue

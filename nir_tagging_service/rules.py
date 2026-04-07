@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Deterministic metadata-driven hints for categories and tags."""
+
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 from urllib.parse import urlparse
@@ -10,6 +12,8 @@ from nir_tagging_service.tag_extraction import TagCandidate
 
 @dataclass(frozen=True, slots=True)
 class RuleHints:
+    """Category boosts, tag injections and trace data produced by rules."""
+
     category_boosts: dict[str, float] = field(default_factory=dict)
     tags: list[TagCandidate] = field(default_factory=list)
     matched_rules: list[dict[str, Any]] = field(default_factory=list)
@@ -24,6 +28,8 @@ def apply_rule_hints(
     language_profile: LanguageProfile,
     output_language: str = "auto",
 ) -> RuleHints:
+    """Infer lightweight hints from source, title and metadata before ML stages."""
+
     resolved_language = resolve_output_language(output_language, language_profile) or "en"
     category_boosts: dict[str, float] = {}
     tags: list[TagCandidate] = []
@@ -101,6 +107,8 @@ def apply_rule_hints(
 
 
 def _accumulate_boost(target: dict[str, float], category_code: str, amount: float) -> None:
+    """Accumulate and round a score boost for a category code."""
+
     target[category_code] = round(target.get(category_code, 0.0) + amount, 3)
 
 
@@ -112,6 +120,8 @@ def _rule_tag(
     reason: str,
     method: str,
 ) -> TagCandidate:
+    """Build a high-confidence tag injected by a deterministic rule."""
+
     label = labels.get(output_language) or labels.get("en") or canonical_name
     return TagCandidate(
         label=label,
@@ -126,6 +136,8 @@ def _rule_tag(
 
 
 def _string_value(metadata: Mapping[str, Any], *keys: str) -> str:
+    """Return the first non-empty string value found under the provided keys."""
+
     for key in keys:
         value = metadata.get(key)
         if isinstance(value, str) and value.strip():
@@ -134,6 +146,8 @@ def _string_value(metadata: Mapping[str, Any], *keys: str) -> str:
 
 
 def _extract_domain(url_value: str) -> str | None:
+    """Extract a normalized host name from a URL-like metadata field."""
+
     if not url_value:
         return None
 

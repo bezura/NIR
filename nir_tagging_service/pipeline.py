@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Database-backed orchestration for asynchronous tagging jobs."""
+
 from dataclasses import asdict
 from logging import Logger
 from time import perf_counter
@@ -36,12 +38,16 @@ from nir_tagging_service.tag_extraction import merge_tag_candidates, reconcile_t
 
 
 class JobNotFoundError(Exception):
+    """Raised when a requested job id is absent from storage."""
+
     def __init__(self, job_id: str) -> None:
         self.job_id = job_id
         super().__init__(f"Job '{job_id}' was not found")
 
 
 class JobFailedError(Exception):
+    """Raised when a completed lookup resolves to a failed job."""
+
     def __init__(self, code: str, message: str) -> None:
         self.code = code
         self.message = message
@@ -49,6 +55,8 @@ class JobFailedError(Exception):
 
 
 class ResultNotReadyError(Exception):
+    """Raised when a result is requested before the job has completed."""
+
     def __init__(self, job_id: str, status: str) -> None:
         self.job_id = job_id
         self.status = status
@@ -59,6 +67,8 @@ def _merge_llm_tag_metadata(
     validated_tags: list[TagResponse],
     base_tags: list[dict],
 ) -> list[dict]:
+    """Preserve provenance fields when the LLM returns refined tag payloads."""
+
     base_by_identity = {
         str(tag.get("canonical_name") or tag.get("normalized_label") or tag.get("label")): dict(tag)
         for tag in base_tags
@@ -89,6 +99,8 @@ async def create_tagging_job(
     payload: CreateTaggingJobRequest,
     api_prefix: str,
 ) -> tuple[CreateTaggingJobResponse, str, str, str]:
+    """Persist a new document and enqueue its processing job."""
+
     progress = initialize_job_progress(payload.options, utc_now())
     async with session_factory() as session:
         document = Document(
@@ -121,6 +133,8 @@ async def fetch_job_status(
     session_factory: async_sessionmaker[AsyncSession],
     job_id: str,
 ) -> JobStatusResponse:
+    """Load a job plus its projected progress view."""
+
     async with session_factory() as session:
         job = await session.get(TaggingJob, job_id)
         if job is None:
@@ -159,6 +173,8 @@ async def fetch_job_result(
     session_factory: async_sessionmaker[AsyncSession],
     job_id: str,
 ) -> JobResultResponse:
+    """Load the finished tagging result or raise a normalized job error."""
+
     async with session_factory() as session:
         job = await session.get(TaggingJob, job_id)
         if job is None:
@@ -198,6 +214,8 @@ async def process_job(
     services: PipelineServices,
     logger: Logger,
 ) -> None:
+    """Run the end-to-end processing pipeline for a queued job."""
+
     async with session_factory() as session:
         job = await session.get(TaggingJob, job_id)
         if job is None:
@@ -287,6 +305,8 @@ async def process_job(
                     language_profile=prepared.language_profile,
                     title_text=prepared.title_text,
                 )
+                # Rule hints can inject catalog-aware tags; merge them with model
+                # output before resolving the final tagging mode.
                 combined_tags = merge_tag_candidates(
                     rule_hints.tags,
                     extracted_tags,

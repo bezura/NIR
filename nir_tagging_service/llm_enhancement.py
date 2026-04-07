@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+"""Optional LLM-backed post-processing for tags and explanations."""
+
 import json
 
 from openai import OpenAI
 
 
 class OpenAICompatibleEnhancer:
+    """Refine tags and explanations via an OpenAI-compatible chat API."""
+
     def __init__(
         self,
         api_url: str,
@@ -30,6 +34,8 @@ class OpenAICompatibleEnhancer:
         allowed_tags: list[dict] | None = None,
         output_language: str = "auto",
     ) -> dict:
+        """Ask the external LLM to refine tags and produce a short explanation."""
+
         allowed_tags_payload = allowed_tags or []
         catalog_instruction = (
             "Select only from the allowed tags list when it is provided. "
@@ -76,18 +82,24 @@ class OpenAICompatibleEnhancer:
 
     @staticmethod
     def _normalize_model(model: str, folder_id: str | None) -> str:
+        """Normalize the provider-specific model identifier."""
+
         if model.startswith("gpt://") or not folder_id:
             return model
         return f"gpt://{folder_id}/{model}/latest"
 
     @staticmethod
     def _build_default_headers(folder_id: str | None) -> dict[str, str] | None:
+        """Build provider headers when a folder or project id is configured."""
+
         if not folder_id:
             return None
         return {"OpenAI-Project": folder_id}
 
     @staticmethod
     def _coerce_tags(raw_tags: object, fallback_tags: list[dict]) -> list[dict]:
+        """Validate and normalize heterogeneous LLM tag payloads."""
+
         if not isinstance(raw_tags, list):
             raise TypeError("llm tags must be a list")
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Embedding-based category scoring and confidence estimation."""
+
 import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
@@ -48,14 +50,20 @@ SECTION_MARKERS = (
 
 
 class EmbeddingBackend(Protocol):
+    """Protocol implemented by embedding backends usable by the classifier."""
+
     def encode(self, texts: list[str]) -> np.ndarray: ...
 
 
 class SentenceTransformerEmbedder:
+    """Adapter around a shared sentence-transformer provider."""
+
     def __init__(self, provider: SentenceTransformerProvider) -> None:
         self.provider = provider
 
     def encode(self, texts: list[str]) -> np.ndarray:
+        """Encode text chunks into normalized NumPy embeddings."""
+
         model = self.provider.get_model()
         embeddings = model.encode(
             texts,
@@ -68,6 +76,8 @@ class SentenceTransformerEmbedder:
 
 @dataclass(frozen=True, slots=True)
 class CategorizationResult:
+    """Categorization output enriched with confidence and trace diagnostics."""
+
     category: CategoryDefinition
     score: float
     similarities: dict[str, float]
@@ -84,6 +94,8 @@ class CategorizationResult:
     classification_trace: list[dict[str, Any]] = field(default_factory=list)
 
     def top_k(self, limit: int) -> list[dict[str, float | str]]:
+        """Return the highest-scoring categories in descending order."""
+
         ranked = sorted(self.similarities.items(), key=lambda item: item[1], reverse=True)[:limit]
         return [{"code": code, "score": float(score)} for code, score in ranked]
 
@@ -110,6 +122,8 @@ class CategorizationResult:
 
 
 def _term_density(text: str) -> float:
+    """Estimate how terminology-dense a chunk is."""
+
     all_tokens = [token.casefold() for token in TOKEN_PATTERN.findall(text)]
     if not all_tokens:
         return 0.0
@@ -123,6 +137,8 @@ def _term_density(text: str) -> float:
 
 
 def compute_chunk_weight(chunk: str, index: int, total_chunks: int) -> tuple[float, bool]:
+    """Weight informative chunks higher during long-document aggregation."""
+
     weight = 1.0
     lowered = chunk.casefold()
     density = _term_density(chunk)
@@ -143,6 +159,8 @@ def compute_chunk_weight(chunk: str, index: int, total_chunks: int) -> tuple[flo
 
 
 def aggregate_similarity_rows(similarities: np.ndarray, weights: Sequence[float]) -> np.ndarray:
+    """Aggregate chunk-by-category similarities into a single score vector."""
+
     similarity_matrix = np.asarray(similarities, dtype=float)
     if similarity_matrix.ndim != 2 or similarity_matrix.shape[0] == 0:
         raise ValueError("aggregate_similarity_rows() requires a non-empty 2D similarity matrix")
@@ -166,6 +184,8 @@ def aggregate_similarity_rows(similarities: np.ndarray, weights: Sequence[float]
 
 
 def _normalize_embedding(vector: np.ndarray) -> np.ndarray:
+    """Normalize an embedding to unit length when possible."""
+
     norm = float(np.linalg.norm(vector))
     if norm == 0.0:
         return vector
@@ -173,6 +193,8 @@ def _normalize_embedding(vector: np.ndarray) -> np.ndarray:
 
 
 def confidence_thresholds_for_chunk_count(num_chunks: int) -> tuple[float, float]:
+    """Choose confidence thresholds based on document length."""
+
     if num_chunks >= 4:
         return LONG_DOCUMENT_SCORE_THRESHOLD, LONG_DOCUMENT_GAP_THRESHOLD
     return LOW_CONFIDENCE_SCORE_THRESHOLD, LOW_CONFIDENCE_GAP_THRESHOLD
@@ -182,6 +204,8 @@ def apply_score_boosts(
     base_scores: dict[str, float],
     score_boosts: dict[str, float] | None,
 ) -> dict[str, float]:
+    """Apply bounded score adjustments from rule-based hints."""
+
     if not score_boosts:
         return dict(base_scores)
 
@@ -192,6 +216,8 @@ def apply_score_boosts(
 
 
 class EmbeddingCategoryClassifier:
+    """Classify documents by scoring chunk embeddings against category prototypes."""
+
     def __init__(
         self,
         embedder: EmbeddingBackend,
@@ -207,6 +233,8 @@ class EmbeddingCategoryClassifier:
         }
 
     def _node_embedding(self, category: CategoryDefinition) -> np.ndarray:
+        """Return the cached prototype embedding for a taxonomy node."""
+
         cached = self._node_embeddings.get(category.code)
         if cached is not None:
             return cached
@@ -218,6 +246,8 @@ class EmbeddingCategoryClassifier:
         return vector
 
     def _candidate_embeddings(self, categories: Sequence[CategoryDefinition]) -> np.ndarray:
+        """Stack category prototype embeddings into a single matrix."""
+
         return np.vstack([self._node_embedding(category) for category in categories])
 
     def _score_candidates(
@@ -228,6 +258,8 @@ class EmbeddingCategoryClassifier:
         leaf_similarity_map: dict[str, float] | None = None,
         score_boosts: dict[str, float] | None = None,
     ) -> dict[str, float]:
+        """Score candidate taxonomy nodes for the current chunk set."""
+
         similarity_matrix = cosine_similarity(document_embeddings, self._candidate_embeddings(categories))
         aggregated = aggregate_similarity_rows(similarity_matrix, chunk_weights)
         direct_scores = {
@@ -253,6 +285,8 @@ class EmbeddingCategoryClassifier:
         chunks: Sequence[str],
         score_boosts: dict[str, float] | None = None,
     ) -> CategorizationResult:
+        """Return the best category plus confidence diagnostics for a document."""
+
         if not chunks:
             raise ValueError("categorize() requires at least one chunk")
 
@@ -268,6 +302,8 @@ class EmbeddingCategoryClassifier:
             if informative:
                 informative_chunk_indices.append(index)
 
+        # Score leaves first, then walk down the taxonomy while keeping the best
+        # accepted level. This avoids overcommitting to a low-confidence leaf.
         leaf_similarity_map = self._score_candidates(
             document_embeddings=document_embeddings,
             categories=self._leaf_categories,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Benchmark helpers for categorization and tag extraction quality checks."""
+
 import json
 from pathlib import Path
 from typing import Any
@@ -10,10 +12,14 @@ from nir_tagging_service.tag_extraction import KeywordTagger
 
 
 def _repo_root() -> Path:
+    """Return the repository root from the installed package path."""
+
     return Path(__file__).resolve().parent.parent
 
 
 def _load_dataset_text(sample: dict[str, Any], dataset_path: Path) -> str:
+    """Load inline text or resolve a file-backed dataset sample."""
+
     text = sample.get("text")
     if text is not None:
         return text
@@ -30,6 +36,8 @@ def _load_dataset_text(sample: dict[str, Any], dataset_path: Path) -> str:
 
 
 def _load_sample_metadata(sample: dict[str, Any]) -> dict[str, Any]:
+    """Normalize per-sample metadata and legacy title fields."""
+
     metadata = sample.get("metadata")
     normalized: dict[str, Any] = dict(metadata) if isinstance(metadata, dict) else {}
 
@@ -41,6 +49,8 @@ def _load_sample_metadata(sample: dict[str, Any]) -> dict[str, Any]:
 
 
 def _safe_accuracy(values: list[bool]) -> float | None:
+    """Return the mean of boolean values or None for an empty list."""
+
     if not values:
         return None
 
@@ -48,6 +58,8 @@ def _safe_accuracy(values: list[bool]) -> float | None:
 
 
 def _taxonomy_paths() -> dict[str, list[str]]:
+    """Build full taxonomy paths for all categories in the catalog."""
+
     paths: dict[str, list[str]] = {}
 
     def visit(node, prefix: list[str]) -> None:
@@ -63,6 +75,8 @@ def _taxonomy_paths() -> dict[str, list[str]]:
 
 
 def _predicted_path_codes(category_result: Any) -> list[str]:
+    """Extract predicted taxonomy path codes from a classifier result."""
+
     category_path = getattr(category_result, "category_path", None) or []
     if category_path:
         return [node.code for node in category_path]
@@ -75,6 +89,8 @@ def _evaluate_category_rows(
     categorizer: Any,
     tagger: Any,
 ) -> list[dict[str, Any]]:
+    """Evaluate categorization row-by-row and keep diagnostic fields."""
+
     rows: list[dict[str, Any]] = []
 
     for sample in samples:
@@ -101,6 +117,8 @@ def _evaluate_category_rows(
 
 
 def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[str, Any]:
+    """Evaluate categorization quality on the mixed short and long benchmark."""
+
     samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
     rows = _evaluate_category_rows(
         samples,
@@ -153,6 +171,8 @@ def evaluate_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[
 
 
 def evaluate_long_document_dataset(dataset_path: Path, categorizer: Any, tagger: Any) -> dict[str, Any]:
+    """Evaluate categorization quality on the dedicated long-document benchmark."""
+
     samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
     long_document_samples = [
         sample for sample in samples
@@ -206,6 +226,8 @@ def evaluate_long_document_dataset(dataset_path: Path, categorizer: Any, tagger:
 
 
 def evaluate_tag_dataset(dataset_path: Path, tagger: Any, max_tags: int = 5) -> dict[str, Any]:
+    """Evaluate precision-like tag quality metrics on the tag benchmark."""
+
     samples = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
     total_matches = 0
     total_predictions = 0
@@ -251,10 +273,14 @@ def evaluate_tag_dataset(dataset_path: Path, tagger: Any, max_tags: int = 5) -> 
 
 
 def format_report(report: dict[str, Any]) -> str:
+    """Render an evaluation report as stable pretty-printed JSON."""
+
     return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
 
 
 def main() -> None:
+    """Run all built-in benchmark datasets and print a combined report."""
+
     from nir_tagging_service.bootstrap import build_default_pipeline_services
     from nir_tagging_service.config import get_settings
 
